@@ -19,7 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\build\proto\ripple.pb.cc" />
+    <ClCompile Include="..\..\build\proto\ripple.pb.cc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\src\ripple\beast\ripple_beast.unity.cpp" />
     <ClCompile Include="..\..\src\ripple\beast\ripple_beastc.unity.c" />
     <ClCompile Include="..\..\src\ripple\common\impl\KeyCache.cpp">
@@ -188,7 +193,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\ripple\proto\ripple.pb.cc" />
+    <ClCompile Include="..\..\src\ripple\proto\protobuf.unity.cpp" />
+    <ClCompile Include="..\..\src\ripple\proto\ripple_proto.unity.cpp" />
     <ClCompile Include="..\..\src\ripple\radmap\impl\BasicFullBelowCache.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -2580,7 +2586,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\protobuf.unity.cpp" />
     <ClCompile Include="..\..\src\websocket\src\base64\base64.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -2661,6 +2666,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\build\proto\ripple.pb.h" />
     <ClInclude Include="..\..\src\BeastConfig.h" />
     <ClInclude Include="..\..\src\ripple\algorithm\api\CycledSet.h" />
     <ClInclude Include="..\..\src\ripple\algorithm\api\DecayingSample.h" />
@@ -2728,7 +2734,6 @@
     <ClInclude Include="..\..\src\ripple\peerfinder\sim\Predicates.h" />
     <ClInclude Include="..\..\src\ripple\peerfinder\sim\sync_timer.h" />
     <ClInclude Include="..\..\src\ripple\peerfinder\sim\WrappedSink.h" />
-    <ClInclude Include="..\..\src\ripple\proto\ripple.pb.h" />
     <ClInclude Include="..\..\src\ripple\radmap\api\BasicFullBelowCache.h" />
     <ClInclude Include="..\..\src\ripple\radmap\api\Tuning.h" />
     <ClInclude Include="..\..\src\ripple\radmap\ripple_radmap.h" />
@@ -3220,18 +3225,18 @@
     <CustomBuild Include="..\..\src\ripple\proto\ripple.proto">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(RelativeDir)%(Filename).pb.h;%(RelativeDir)%(Filename).pb.cc</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(RelativeDir)%(Filename).pb.h;%(RelativeDir)%(Filename).pb.cc</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(RelativeDir)%(Filename).pb.h;%(RelativeDir)%(Filename).pb.cc</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(RelativeDir)%(Filename).pb.h;%(RelativeDir)%(Filename).pb.cc</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">protoc --cpp_out=%(RelativeDir) --proto_path=%(RelativeDir) %(Identity)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">protoc --cpp_out=$(RepoDir)\build\proto --proto_path=%(RelativeDir) %(Identity)</Message>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>

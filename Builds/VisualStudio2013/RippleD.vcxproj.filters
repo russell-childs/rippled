@@ -25,9 +25,6 @@
     <Filter Include="[0] Libraries\leveldb\util">
       <UniqueIdentifier>{8710b403-2cfa-4991-b8b4-8214d1947528}</UniqueIdentifier>
     </Filter>
-    <Filter Include="[0] Libraries\protobuf">
-      <UniqueIdentifier>{1f093002-9955-4915-a17b-398d55c9fc76}</UniqueIdentifier>
-    </Filter>
     <Filter Include="[0] Libraries\websocket">
       <UniqueIdentifier>{6967f835-a1b0-47e3-9bd9-6fc8bd0f3df7}</UniqueIdentifier>
     </Filter>
@@ -1620,9 +1617,6 @@
     <ClCompile Include="..\..\src\ripple_app\misc\AmendmentTableImpl.cpp">
       <Filter>[2] Old Ripple\ripple_app\misc</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ripple\proto\ripple.pb.cc">
-      <Filter>[1] Ripple\proto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ripple\beast\ripple_beast.unity.cpp">
       <Filter>[1] Ripple\beast</Filter>
     </ClCompile>
@@ -1722,10 +1716,15 @@
     <ClCompile Include="..\..\src\ripple_websocket\ripple_websocket.unity.cpp">
       <Filter>[2] Old Ripple\ripple_websocket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\protobuf.unity.cpp">
-      <Filter>[0] Libraries\protobuf</Filter>
+    <ClCompile Include="..\..\src\ripple\proto\ripple_proto.unity.cpp">
+      <Filter>[1] Ripple\proto</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\build\proto\ripple.pb.cc" />
+    <ClCompile Include="..\..\build\proto\ripple.pb.cc">
+      <Filter>[1] Ripple\proto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ripple\proto\protobuf.unity.cpp">
+      <Filter>[1] Ripple\proto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ripple_basics\containers\RangeSet.h">
@@ -3346,7 +3345,7 @@
     <ClInclude Include="..\..\src\ripple_app\misc\AmendmentTable.h">
       <Filter>[2] Old Ripple\ripple_app\misc</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\proto\ripple.pb.h">
+    <ClInclude Include="..\..\build\proto\ripple.pb.h">
       <Filter>[1] Ripple\proto</Filter>
     </ClInclude>
   </ItemGroup>
