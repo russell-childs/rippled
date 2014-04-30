@@ -34,6 +34,14 @@ void DummyScheduler::scheduleTask (Task& task)
     task.performScheduledTask();
 }
 
+void DummyScheduler::onFetch (const FetchReport& report)
+{
+}
+
+void DummyScheduler::onBatchWrite (const BatchWriteReport& report)
+{
+}
+
 void DummyScheduler::scheduledTasksStopped ()
 {
 }
