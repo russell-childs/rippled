@@ -267,6 +267,13 @@ public:
             new LoadEvent (iter-> second.load (), name, true));
     }
 
+    void addLoadEvents (JobType t, int count, std::size_t milliseconds)
+    {
+        JobDataMap::iterator iter (m_jobData.find (t));
+        assert (iter != m_jobData.end ());
+        iter->second.load().addSamples (count, elapsed);
+    }
+
     bool isOverloaded ()
     {
         int count = 0;
