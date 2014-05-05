@@ -133,7 +133,7 @@ public:
         // We prefer a client not fill our cache
         // We don't want to push data out of the cache
         // before it's retrieved
-        return m_cache.getTargetSize() / 8;
+        return m_cache.getTargetSize() / asyncDivider;
     }
 
     NodeObject::Ptr fetch (uint256 const& hash)
