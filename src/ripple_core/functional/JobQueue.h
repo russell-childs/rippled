@@ -64,7 +64,8 @@ public:
     virtual LoadEvent::autoptr getLoadEventAP (JobType t, const std::string& name) = 0;
 
     // Add multiple load events
-    virtual void addLoadEvents (JobType t, int count, std::size_t milliseconds) = 0;
+    virtual void addLoadEvents (JobType t,
+        int count, std::chrono::milliseconds elapsed) = 0;
 
     virtual bool isOverloaded () = 0;
 

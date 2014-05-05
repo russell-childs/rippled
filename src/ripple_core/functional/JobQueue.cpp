@@ -267,7 +267,8 @@ public:
             new LoadEvent (iter-> second.load (), name, true));
     }
 
-    void addLoadEvents (JobType t, int count, std::size_t milliseconds)
+    void addLoadEvents (JobType t,
+        int count, std::chrono::milliseconds elapsed)
     {
         JobDataMap::iterator iter (m_jobData.find (t));
         assert (iter != m_jobData.end ());

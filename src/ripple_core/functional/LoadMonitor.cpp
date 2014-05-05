@@ -172,17 +172,17 @@ void LoadMonitor::addLoadSample (LoadEvent const& sample)
    @param count The number of samples to add
    @param latencyMS The total number of milliseconds
 */
-void LoadMonitor::addSamples (int count, std::size_t latencyMS)
+void LoadMonitor::addSamples (int count, std::chrono::milliseconds latency)
 {
     ScopedLockType sl (mLock);
 
     update ();
     mCounts += count;
     mLatencyEvents += count;
-    mLatencyMSAvg += latencyMS;
-    mLatencyMSPeak += latencyMS;
+    mLatencyMSAvg += latency.count();
+    mLatencyMSPeak += latency.count();
 
-    int const latencyPeak = mLatencyEvents * latencyMS * 4 / count;
+    int const latencyPeak = mLatencyEvents * latency.count() * 4 / count;
 
     if (mLatencyMSPeak < latencyPeak)
         mLatencyMSPeak = latencyPeak;
