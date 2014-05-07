@@ -189,12 +189,11 @@ def categorize(groups, func, sources):
 
 # Set construction variables for the base environment
 def config_base(env):
-    if False:
-        env.Replace(
-            CCCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
-            CXXCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
-            LINKCOMSTR='Linking ' + Beast.blue('$TARGET'),
-            )
+    env.Replace(
+        CCCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
+        CXXCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
+        LINKCOMSTR='Linking ' + Beast.blue('$TARGET'),
+        )
     #git = Beast.Git(env) #  TODO(TOM)
     if False: #git.exists:
         env.Append(CPPDEFINES={'GIT_COMMIT_ID' : '"%s"' % git.commit_id})
@@ -408,13 +407,12 @@ else:
         raise ValueError('No toolchains detected!')
     if 'msvc' in toolchains:
         default_toolchain = 'msvc'
-    elif 'clang' in toolchains:
-        default_toolchain = 'clang'
     elif 'gcc' in toolchains:
         default_toolchain = 'gcc'
+    elif 'clang' in toolchains:
+        default_toolchain = 'clang'
     else:
         raise ValueError("Don't understand toolchains in " + str(toolchains))
-
 default_variant = 'debug'
 default_target = None
 
