@@ -95,22 +95,9 @@ def osx_openssl_path():
     return os.path.join(OSX_OPENSSL_ROOT, most_recent)
 
 def is_compiler(comp_from, comp_to):
-    try:
-        if comp_to in subprocess.check_output([comp_from, '--version']):
-            return True
-    except:
-        pass
-    return False
+    return comp_to in comp_from
 
 def detect_toolchains(env):
-    def _is_compiler(comp_from, comp_to):
-        result = _is_compiler(comp_from, comp_to)
-        if result:
-            print ('is_compiler("' + comp_from + '", "' + comp_to + '") == True')
-        else:
-            print ('is_compiler("' + comp_from + '", "' + comp_to + '") == False')
-        return result
-
     def detect_clang(env):
         if 'CLANG_CC' in env or 'CLANG_CXX' in env or 'CLANG_LINK' in env:
             if 'CLANG_CC' in env and 'CLANG_CXX' in env and 'CLANG_LINK' in env:
@@ -202,11 +189,12 @@ def categorize(groups, func, sources):
 
 # Set construction variables for the base environment
 def config_base(env):
-    env.Replace(
-        CCCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
-        CXXCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
-        LINKCOMSTR='Linking ' + Beast.blue('$TARGET'),
-        )
+    if False:
+        env.Replace(
+            CCCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
+            CXXCOMSTR='Compiling ' + Beast.blue('$SOURCES'),
+            LINKCOMSTR='Linking ' + Beast.blue('$TARGET'),
+            )
     #git = Beast.Git(env) #  TODO(TOM)
     if False: #git.exists:
         env.Append(CPPDEFINES={'GIT_COMMIT_ID' : '"%s"' % git.commit_id})
@@ -261,6 +249,7 @@ def config_env(toolchain, variant, env):
                 '-Wno-unused-variable',
                 '-Wno-unused-function',
                 ])
+            env.Append(CXXFLAGS=['-std=c++11'])#, '-stdlib=libstdc++'])
             env.Append(CPPDEFINES={'BEAST_COMPILE_OBJECTIVE_CPP': 1})
         else:
             env.Append(CCFLAGS=['-Wno-unused-but-set-variable'])
@@ -287,7 +276,10 @@ def config_env(toolchain, variant, env):
             env.Append(CCFLAGS=['-O3', '-fno-strict-aliasing'])
 
         if toolchain == 'clang':
-            env.Replace(CC=env['CLANG_CC'], CXX=env['CLANG_CXX'], LINK=env['CLANG_LINK'])
+            if Beast.system.osx:
+                env.Replace(CC='clang', CXX='clang++', LINK='clang++')
+            else:
+                env.Replace(CC=env['CLANG_CC'], CXX=env['CLANG_CXX'], LINK=env['CLANG_LINK'])
             # C and C++
             # Add '-Wshorten-64-to-32'
             env.Append(CCFLAGS=[])
@@ -406,18 +398,23 @@ base.Append(CPPPATH=[
     os.path.join(build_dir, 'proto')])
 
 # Configure the toolchains, variants, default toolchain, and default target
-toolchains = detect_toolchains(base)
 variants = ['debug', 'release']
-if 'msvc' in toolchains:
-    default_toolchain = 'msvc'
-elif 'gcc' in toolchains and is_compiler(base.get('CXX'), 'g++'):
-    default_toolchain = 'gcc'
-elif 'clang' in toolchains and is_compiler(base.get('CXX'), 'clang'):
+if Beast.system.osx:
+    toolchains = ['clang']
     default_toolchain = 'clang'
-elif 'gcc' in toolchains:
-    default_toolchain = 'gcc'
 else:
-    default_toolchain = 'clang'
+    toolchains = detect_toolchains(base)
+    if not toolchains:
+        raise ValueError('No toolchains detected!')
+    if 'msvc' in toolchains:
+        default_toolchain = 'msvc'
+    elif 'clang' in toolchains:
+        default_toolchain = 'clang'
+    elif 'gcc' in toolchains:
+        default_toolchain = 'gcc'
+    else:
+        raise ValueError("Don't understand toolchains in " + str(toolchains))
+
 default_variant = 'debug'
 default_target = None
 
