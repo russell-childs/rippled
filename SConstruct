@@ -487,6 +487,8 @@ categorize(groups, unity_category,
 
 groups['protoc'].append (
     os.path.join('src', 'ripple', 'proto', 'ripple.proto'))
+groups['protoc'].append (
+    os.path.join('src', 'ripple', 'proto', 'ripple_system_tests.proto'))    
 for source in groups['protoc']:
     outputs = base.Protoc([],
         source,

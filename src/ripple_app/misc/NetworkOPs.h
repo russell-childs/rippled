@@ -231,6 +231,7 @@ public:
         uint256 wantLedger, std::uint32_t uUptime) = 0;
 
     virtual bool shouldFetchPack (std::uint32_t seq) = 0;
+    virtual void gotFetchPack (bool progress, std::uint32_t seq, const boost::shared_ptr<protocol::TMGetObjectByHash>& ptr) = 0;
     virtual void gotFetchPack (bool progress, std::uint32_t seq) = 0;
     virtual void addFetchPack (uint256 const& hash, boost::shared_ptr< Blob >& data) = 0;
     virtual bool getFetchPack (uint256 const& hash, Blob& data) = 0;

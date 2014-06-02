@@ -40,6 +40,19 @@ public:
     }
 };
 
+//RJCHILDS start of mod
+// Function description:
+// node and otherMapItiem belong to the same Node ID. isFirstMap is true if node belongs to this_tree, false
+// if it belongs to other_tree. diffrerences contains a set of
+// std::pair<item_tag, std::pair<this_tree_item_or_null, other_tree_item_or_null> >
+// If node is an inner node, this function obtains all the leaf items that can be reached from node, in left to right order.
+// For each leaf reachable from node, if the item tag > other_tree item tag, then other_tree item is missing from first map
+//			std::pair<item_tag, std::pair<null, other_tree_item> > i.e. it is a deleted item in this_tree if it is node.
+//			std::pair<item_tag, std::pair<other_tree_item, null > i.e. it is a new item in this_tree if other_tree is node.
+// For each leaf reachable from node, if the item tag == other_tree item tag and data is different, then other_tree item is a modified item
+//			std::pair<item_tag, std::pair<this_tree_item, other_tree_item > if this_tree is node
+//			std::pair<item_tag, std::pair<other_tree_item, this_tree_item > if other_tree is node
+//RJCHILDS end of mod
 bool SHAMap::walkBranch (SHAMapTreeNode* node, SHAMapItem::ref otherMapItem, bool isFirstMap,
                          Delta& differences, int& maxCount)
 {
@@ -233,6 +246,84 @@ bool SHAMap::compare (SHAMap::ref otherMap, Delta& differences, int maxCount)
 
     return true;
 }
+
+//RJCHILDS start of mod
+// In: modified_leaves 	- 	leaves that exist in both this_ledeger_tree and parent_ledger_tree but whose data differ
+// In: deleted_leaves 	- 	leaves that exist in this_tree but not in parent_tree
+// In: new_leaves		-	leaves that exist in parent_tree but not this_tree
+//
+// Returns: bool - true=no error, false = error
+//
+// Description: SHAMap::compare returns the set of new, deleted and modified leaves resulting from parent_tree - this_tree.
+//				This function "integrates" over incremental differences between trees adding new leaves, deleting
+//				deleted leaves and modifying modified leaves. The end result is the transformation
+//				this_tree --> this_tree + (parent_tree - this_tree) = parent_tree
+//
+// Assumptions:
+//	(1) After conversion, this_tree will have the same number of leaves as parent_tree.
+//  (2) this_tree exceeds parent_tree in height by no more than 1 level.
+//  (3) The position of a node in the tree depends solely on its hash value.
+//  (4) Two successive ledger trees with the same number of leaves and the same set of leaf items are identical in their
+//		root, inner and leaf nodes
+//  (5) Given a set of new leaves in parent_tree, calling addGuiveItem for each of these new leaves will add them to this_tree
+//  (6) Given a set of deleted leaves in parent_tree, calling delIitem for each of these deleted leaves will remove the
+//		corresponding leaves and branches from this_tree.
+//  (7) Given a set of modified leaves in parent_tree, calling updateGiveItem for each of the modified leaves will update the
+//		corresponding leaves in this_tree.
+//  (8) Transcations leaf differences are confined to new and modified, there are no deleted leaf items.
+bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
+						const std::set<SHAMapItem::ref>& deleted_leaves,
+						const std::set<SHAMapItem::ref>& new_leaves,
+						bool isTransaction, bool hasMeta)
+{
+	//Assume no error until proven wrong
+	bool ret_val = true;
+
+	//Integrate over modified leaves
+	for( auto& leaf : modified_leaves )
+	{
+		if( hasItem(leaf.getTag()) ) //Verify leaf exists
+		{
+			updateGiveItem(leaf, isTransaction, hasMeta)
+		}
+		else //inconsistency between fetch pack and this_tree
+		{
+			ret_val = false;
+			WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert. A compact fetch pack contains a modified leaf that does not exist in this tree.";
+		}
+	}
+
+	//Integrate over deleted leaves
+	for( auto& leaf : deleted_leaves )
+	{
+		if( hasItem(leaf.getTag()) ) //Verify leaf exists
+		{
+			delItem(leaf)
+		}
+		else	//inconsistency between fetch pack and this_tree
+		{
+			ret_val = false;
+			WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert. A compact fetch pack contains a deleted leaf that does not exist in this tree.";
+		}
+	}
+
+	//Integrate over modified leaves
+	for( auto& leaf : new_leaves )
+	{
+		if( !hasItem(leaf.getTag()) ) //Verify leaf does not exist
+		{
+			addGiveItem(leaf, isTransaction, hasMeta)
+		}
+		else //inconsistency between fetch pack and this_tree
+		{
+			ret_val = false;
+			WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert. A compact fetch pack contains a new leaf that already exists in this tree.";
+		}
+	}
+
+	return ret_val;
+}
+//RJCHILDS end of mod
 
 void SHAMap::walkMap (std::vector<SHAMapMissingNode>& missingNodes, int maxMissing)
 {
