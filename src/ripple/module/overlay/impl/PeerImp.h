@@ -1709,7 +1709,8 @@ private:
         if (packet.query ())
         {
             // this is a query
-            if (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK)
+            if ( (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK) ||
+            		(packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK) )
             {
                 doFetchPack (ptr);
                 return;
@@ -1802,6 +1803,9 @@ private:
                                 obj.data ().begin (), obj.data ().end ()));
 
                         getApp().getOPs ().addFetchPack (hash, data);
+
+                        // TODO check fo otCompactFetchPack and place content in Tagged cache via addFetchPack.
+                        // Assumption: Node hash is the same as an item hash if the node is a leaf node.
                     }
                 }
             }
@@ -1810,8 +1814,9 @@ private:
                 m_journal.active(beast::Journal::Severity::kDebug))
                 m_journal.debug << "Received partial fetch pack for " << pLSeq;
 
-            if (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK)
-                getApp().getOPs ().gotFetchPack (progress, pLSeq);
+            if ( (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK) ||
+                        		(packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK) )
+                getApp().getOPs ().gotFetchPack (progress, pLSeq, ptr);
         }
     }
 
@@ -2582,7 +2587,7 @@ private:
         uint256 hash;
         memcpy (hash.begin (), packet->ledgerhash ().data (), 32);
 
-        getApp().getJobQueue ().addJob (jtPACK, "MakeFetchPack",
+        getApp().getJobQueue ().addJob (jtPACK, packet->type() == otFETCH_PACK ? "MakeFetchPack" : "MakeCompactFetchPack,
             std::bind (&NetworkOPs::makeFetchPack, &getApp().getOPs (), std::placeholders::_1,
                 std::weak_ptr<Peer> (shared_from_this ()), packet,
                     hash, UptimeTimer::getInstance ().getElapsedSeconds ()));

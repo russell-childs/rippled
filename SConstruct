@@ -478,6 +478,7 @@ default_target = None
 
 for source in [
     'src/ripple/proto/ripple.proto',
+    'src/ripple/proto/ripple_system_tests.proto',
     ]:
     base.Protoc([],
         source,

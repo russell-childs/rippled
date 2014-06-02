@@ -300,6 +300,28 @@ message TMIndexedObject
     optional uint32 ledgerSeq   = 5;
 }
 
+message TMLedgerHeader
+{
+	required bytes data = 1;
+}
+
+message TMIndexedLeafItem
+{
+	required bytes tagIndex 	= 1;
+	required bytes data			= 2;
+	repeated bytes metaData		= 3;
+}
+
+message TMCompactFetchPack
+{
+ 	required bytes haveLedgerHash 					= 1;
+ 	required TMLedgerHeader wantedLedgerHeader 		= 2;
+ 	repeated TMIndexedLeafItem newStateItem 		= 3;
+ 	repeated TMIndexedLeafItem modifiedStateItem 	= 4;
+ 	repeated TMIndexedLeafItem deletedStateItem		= 5;
+ 	repeated TMIndexedLeafItem transactionItem		= 6;
+}
+
 message TMGetObjectByHash
 {
     enum ObjectType {
@@ -310,6 +332,7 @@ message TMGetObjectByHash
         otSTATE_NODE        = 4;
         otCAS_OBJECT        = 5;
         otFETCH_PACK        = 6;
+        otCOMPACT_FETCH_PACK= 7;
     }
 
     required ObjectType type            = 1;
@@ -318,6 +341,7 @@ message TMGetObjectByHash
     optional bytes ledgerHash           = 4;    // the hash of the ledger these queries are for
     optional bool fat                   = 5;    // return related nodes
     repeated TMIndexedObject objects    = 6;    // the specific objects requested
+    optional TMCompactFetchPack compactFetchPack = 7;	// Compact fetchpack data.
 }
 
 
