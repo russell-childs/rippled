@@ -3287,7 +3287,7 @@ void NetworkOPsImp::makeFetchPack (Job&, boost::weak_ptr<Peer> wPeer,
                 //Test for new, mod, deleted
                 if( !sourceLedgerItem && wantedLedgerItem ) // new
                 {
-                    stateLeafAppender(*reply.add_newStateItem(), wantedLedgerItem);
+                    stateLeafAppender(*reply.add_new_state_item(), wantedLedgerItem);
                 }
                 else if( sourceLedgerItem && wantedLedgerItem ) // modified
                 {
