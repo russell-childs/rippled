@@ -307,19 +307,20 @@ message TMLedgerHeader
 
 message TMIndexedLeafItem
 {
-	required bytes tagIndex 	= 1;
+	required bytes tag_index 	= 1;
 	required bytes data			= 2;
-	repeated bytes metaData		= 3;
 }
 
 message TMCompactFetchPack
 {
- 	required bytes haveLedgerHash 					= 1;
- 	required TMLedgerHeader wantedLedgerHeader 		= 2;
- 	repeated TMIndexedLeafItem newStateItem 		= 3;
- 	repeated TMIndexedLeafItem modifiedStateItem 	= 4;
- 	repeated TMIndexedLeafItem deletedStateItem		= 5;
- 	repeated TMIndexedLeafItem transactionItem		= 6;
+ 	required bytes have_ledger_hash 						= 1;
+ 	required TMLedgerHeader wanted_ledger_header 			= 2;
+ 	repeated TMIndexedLeafItem new_state_item 				= 3;
+ 	repeated TMIndexedLeafItem modified_state_item 			= 4;
+ 	repeated TMIndexedLeafItem deleted_state_item			= 5;
+ 	repeated TMIndexedLeafItem transaction_with_meta_item	= 6;
+ 	repeated TMIndexedLeafItem transaction_item				= 7;
+ 	optional uint32 ledger_seq   							= 8;
 }
 
 message TMGetObjectByHash
@@ -341,7 +342,7 @@ message TMGetObjectByHash
     optional bytes ledgerHash           = 4;    // the hash of the ledger these queries are for
     optional bool fat                   = 5;    // return related nodes
     repeated TMIndexedObject objects    = 6;    // the specific objects requested
-    optional TMCompactFetchPack compactFetchPack = 7;	// Compact fetchpack data.
+    optional TMCompactFetchPack compact_fetch_pack = 7;	// Compact fetchpack data.
 }
 
 

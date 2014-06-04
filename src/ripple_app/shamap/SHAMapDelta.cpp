@@ -248,15 +248,15 @@ bool SHAMap::compare (SHAMap::ref otherMap, Delta& differences, int maxCount)
 }
 
 //RJCHILDS start of mod
-// In: modified_leaves 	- 	leaves that exist in both this_ledeger_tree and parent_ledger_tree but whose data differ
-// In: deleted_leaves 	- 	leaves that exist in this_tree but not in parent_tree
+// In: modified_leaves -    leaves that exist in both this_ledeger_tree and parent_ledger_tree but whose data differ
+// In: deleted_leaves -     leaves that exist in this_tree but not in parent_tree
 // In: new_leaves		-	leaves that exist in parent_tree but not this_tree
 //
 // Returns: bool - true=no error, false = error
 //
 // Description: SHAMap::compare returns the set of new, deleted and modified leaves resulting from parent_tree - this_tree.
 //				This function "integrates" over incremental differences between trees adding new leaves, deleting
-//				deleted leaves and modifying modified leaves. The end result is the transformation
+//              deleted leaves and modifying modified leaves. The end result is the transformation
 //				this_tree --> this_tree + (parent_tree - this_tree) = parent_tree
 //
 // Assumptions:
@@ -272,56 +272,99 @@ bool SHAMap::compare (SHAMap::ref otherMap, Delta& differences, int maxCount)
 //		corresponding leaves in this_tree.
 //  (8) Transcations leaf differences are confined to new and modified, there are no deleted leaf items.
 bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
-						const std::set<SHAMapItem::ref>& deleted_leaves,
-						const std::set<SHAMapItem::ref>& new_leaves,
-						bool isTransaction, bool hasMeta)
+        const std::set<SHAMapItem::ref>& deleted_leaves,
+        const std::set<SHAMapItem::ref>& new_leaves,
+        const std::set<SHAMapItem::ref>& transaction_without_meta_data_leaves,
+        const std::set<SHAMapItem::ref>& transaction_with_meta_data_leaves)
 {
-	//Assume no error until proven wrong
-	bool ret_val = true;
+    //Assume no error until proven wrong
+    bool ret_val = true;
 
-	//Integrate over modified leaves
-	for( auto& leaf : modified_leaves )
-	{
-		if( hasItem(leaf.getTag()) ) //Verify leaf exists
-		{
-			updateGiveItem(leaf, isTransaction, hasMeta)
-		}
-		else //inconsistency between fetch pack and this_tree
-		{
-			ret_val = false;
-			WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert. A compact fetch pack contains a modified leaf that does not exist in this tree.";
-		}
-	}
+    //Integrate over modified leaves
+    for( auto& leaf : modified_leaves )
+    {
+        if( hasItem(leaf.getTag()) ) //Verify leaf exists
+        {
+            updateGiveItem(leaf, false, false)
+        }
+        else //inconsistency between fetch pack and this_tree
+        {
+            ret_val = false;
+            WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
+                    << " A compact fetch pack contains a modified account state leaf that does not exist in this tree.";
+        }
+    }
 
-	//Integrate over deleted leaves
-	for( auto& leaf : deleted_leaves )
-	{
-		if( hasItem(leaf.getTag()) ) //Verify leaf exists
-		{
-			delItem(leaf)
-		}
-		else	//inconsistency between fetch pack and this_tree
-		{
-			ret_val = false;
-			WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert. A compact fetch pack contains a deleted leaf that does not exist in this tree.";
-		}
-	}
+    //Integrate over deleted leaves
+    for( auto& leaf : deleted_leaves )
+    {
+        if( hasItem(leaf.getTag()) ) //Verify leaf exists
+        {
+            delItem(leaf)
+        }
+        else	//inconsistency between fetch pack and this_tree
+        {
+            ret_val = false;
+            WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
+                    << " A compact fetch pack contains a deleted account state leaf that does not exist in this tree.";
+        }
+    }
 
-	//Integrate over modified leaves
-	for( auto& leaf : new_leaves )
-	{
-		if( !hasItem(leaf.getTag()) ) //Verify leaf does not exist
-		{
-			addGiveItem(leaf, isTransaction, hasMeta)
-		}
-		else //inconsistency between fetch pack and this_tree
-		{
-			ret_val = false;
-			WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert. A compact fetch pack contains a new leaf that already exists in this tree.";
-		}
-	}
+    //Integrate over modified leaves
+    for( auto& leaf : new_leaves )
+    {
+        if( !hasItem(leaf.getTag()) ) //Verify leaf does not exist
+        {
+            addGiveItem(leaf, false, false)
+        }
+        else //inconsistency between fetch pack and this_tree
+        {
+            ret_val = false;
+            WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
+                    << " A compact fetch pack contains a new account state leaf that already exists in this tree.";
+        }
+    }
 
-	return ret_val;
+    //Integrate over transaction-with-meta-data leaves
+    for( auto& leaf : transaction_md_leaves )
+    {
+        if( hasItem(leaf.getTag()) ) //Leaf exists, so modify it
+        {
+            updateGiveItem(leaf, true, true);
+        }
+        else //new leaf, so add it
+        {
+            addGiveItem(leaf, true, true);
+        }
+    }
+
+    //Integrate over transaction-without-meta-data leaves
+    for( auto& leaf : transaction_without_meta_data_leaves )
+    {
+        if( hasItem(leaf.getTag()) ) //Leaf exists, so modify it
+        {
+            updateGiveItem(leaf, true, false);
+        }
+        else //new leaf, so add it
+        {
+            addGiveItem(leaf, true, false);
+        }
+    }
+
+    //Integrate over transaction-with-meta-data leaves
+    for( auto& leaf : transaction_with_meta_data_leaves )
+    {
+        if( hasItem(leaf.getTag()) ) //Leaf exists, so modify it
+        {
+            updateGiveItem(leaf, true, true);
+        }
+        else //new leaf, so add it
+        {
+            addGiveItem(leaf, true, true);
+        }
+    }
+
+    return ret_val;
 }
 //RJCHILDS end of mod
 
