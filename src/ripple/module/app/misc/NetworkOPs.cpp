@@ -3192,8 +3192,8 @@ static void fpAppender (protocol::TMGetObjectByHash* reply, std::uint32_t ledger
 }
 
 void NetworkOPsImp::makeFetchPack (Job&, std::weak_ptr<Peer> wPeer,
-                                std::shared_ptr<protocol::TMGetObjectByHash> request,
-                                uint256 haveLedgerHash, std::uint32_t uUptime)
+        std::shared_ptr<protocol::TMGetObjectByHash> request,
+        uint256 haveLedgerHash, std::uint32_t uUptime)
 {
     if (UptimeTimer::getInstance ().getElapsedSeconds () > (uUptime + 1))
     {
@@ -3202,7 +3202,7 @@ void NetworkOPsImp::makeFetchPack (Job&, std::weak_ptr<Peer> wPeer,
     }
 
     if (getApp().getFeeTrack ().isLoadedLocal () ||
-        (m_ledgerMaster.getValidatedLedgerAge() > 40))
+            (m_ledgerMaster.getValidatedLedgerAge() > 40))
     {
         m_journal.info << "Too busy to make fetch pack";
         return;
@@ -3241,8 +3241,8 @@ void NetworkOPsImp::makeFetchPack (Job&, std::weak_ptr<Peer> wPeer,
     if (!wantLedger)
     {
         m_journal.info
-            << "Peer requests fetch pack for ledger whose predecessor we don't have: "
-            << haveLedger;
+        << "Peer requests fetch pack for ledger whose predecessor we don't have: "
+        << haveLedger;
         peer->charge (Resource::feeRequestNoReply);
         return;
     }
@@ -3260,89 +3260,93 @@ void NetworkOPsImp::makeFetchPack (Job&, std::weak_ptr<Peer> wPeer,
         reply.set_type(request->type());
 
         if(request->type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK ) //otCOMPACT_FETCH_PACK
-		{
-			protocol::TMCompactFetchPack& compactFetchPack
-											= *reply.add_compactFetchPack();
+        {
+            protocol::TMCompactFetchPack& compactFetchPack
+            = *reply.add_compactFetchPack();
 
-			//Add wanted ledger header to reply
-			compactFetchPack.add_wantedLedgerHeader()->set_data(s.getDataPtr (), s.getLength ());
+            //Add wanted ledger header to reply
+            compactFetchPack.add_wantedLedgerHeader()->set_data(s.getDataPtr (), s.getLength ());
 
-			//Get new, modified, deleted account state leaves
-			Delta differences
-			haveLedger->peekAccountStateMap ().compare (wantLedger, differences, unsigned(-1));
+            //Get new, modified, deleted account state leaves
+            Delta differences
+            haveLedger->peekAccountStateMap ().compare (wantLedger, differences, unsigned(-1));
 
-			//Add differences to reply
-			for( auto diff : differences )
+            //Add differences to reply
+            for( auto diff : differences )
+            {
+                //leaves in source and wanted ledgers
+                SHAMapItem::pointer sourceLedgerItem = diff->second.first;
+                SHAMapItem::pointer wantedLedgerItem = diff->second.second;
+
+                auto stateLeafAppender = [](protocol::TMIndexedLeafItem& leafItem, SHAMapItem::pointer& ledgerItem)
+				{
+                    leafItem.set_tag_index( &(diff->first[0]), diff->first.size() );
+                    leafItem.set_data( &ledgerItem->first[0]), ledgerItem->first.size() );
+				}
+
+                //Test for new, mod, deleted
+                if( !sourceLedgerItem && wantedLedgerItem ) // new
+                {
+                    stateLeafAppender(*reply.add_newStateItem(), wantedLedgerItem);
+                }
+                else if( sourceLedgerItem && wantedLedgerItem ) // modified
+                {
+                    stateLeafAppender(*reply.add_modifiedStateItem(), wantedLedgerItem);
+                }
+                else if( sourceLedgerItem && !wantedLedgerItem ) // deleted
+                {
+                    stateLeafAppender(*reply.add_modifiedStateItem(), sourceLedgerItem);
+                }
+            }
+
+            //Get transaction leaves
+            auto transactionLeafAppender = [&compactFetchPack](SHAMapItem::ref item) // callback lambda func
 			{
-				//leaves in source and wanted ledgers
-				SHAMapItem::pointer sourceLedgerItem = diff->second.first;
-				SHAMapItem::pointer wantedLedgerItem = diff->second.second;
-
-				auto stateLeafAppender = [](protocol::TMIndexedLeafItem& leafItem, SHAMapItem::pointer& ledgerItem)
-				{
-					leafItem.set_tagIndex( &(diff->first[0]), diff->first.size() );
-					leafItem.set_data( &ledgerItem->first[0]), ledgerItem->first.size() );
-				}
-
-				//Test for new, mod, deleted
-				if( !sourceLedgerItem && wantedLedgerItem ) // new
-				{
-					stateLeafAppender(*reply.add_newStateItem(), wantedLedgerItem);
-				}
-				else if( sourceLedgerItem && wantedLedgerItem ) // modified
-				{
-					stateLeafAppender(*reply.add_modifiedStateItem(), wantedLedgerItem);
-				}
-				else if( sourceLedgerItem && !wantedLedgerItem ) // deleted
-				{
-					stateLeafAppender(*reply.add_modifiedStateItem(), sourceLedgerItem);
-				}
-			}
-
-			//Get transaction leaves
-			auto transactionLeafAppender = [&compactFetchPack](SHAMapItem::ref item) // callback lambda func
-			{
-				protocol::TMIndexedLeafItem& leafItem = *(compactFetchPack.get_transactionItem());
-				leafItem.set_tagIndex( &(item.getTag()[0]), item.getTag().size() );
-				leafItem.set_data( &(item.peekData()[0]), item.peekData().size() );
+                //Determine whether transaction has meta data - N.B. This is very clunky, since it requires a 2nd tree traversal
+                auto transaction_map = wantLedger->peekAccountStateMap();
+                protocol::TMIndexedLeafItem& leafItem = transaction_map->peekItem(item->getTag()).hasMeta() ?
+                        *(compactFetchPack.get_transactionWithMetaItem()) : *(compactFetchPack.get_transactionItem());
+                //Record index and data for the item.
+                leafItem.set_tagIndex( &(item->getTag()[0]), item->getTag().size() );
+                leafItem.set_data( &(item->peekData()[0]), item->peekData().size() );
 			};
-			wantLedger->peekTransactionMap ()->visitLeaves( transactionLeafAppender );
-		}
-		else
-		{
-			do
-			{
-				std::uint32_t lSeq = wantLedger->getLedgerSeq ();
+            wantLedger->peekTransactionMap ()->visitLeaves( transactionLeafAppender );
+        }
+        else
+        {
+            do
+            {
+                std::uint32_t lSeq = wantLedger->getLedgerSeq ();
 
-				protocol::TMIndexedObject& newObj = *reply.add_objects ();
-				newObj.set_hash (wantLedger->getHash ().begin (), 256 / 8);
-				Serializer s (256);
-				s.add32 (HashPrefix::ledgerMaster);
-				wantLedger->addRaw (s);
-				newObj.set_data (s.getDataPtr (), s.getLength ());
-				newObj.set_ledgerseq (lSeq);
+                protocol::TMIndexedObject& newObj = *reply.add_objects ();
+                newObj.set_hash (wantLedger->getHash ().begin (), 256 / 8);
+                Serializer s (256);
+                s.add32 (HashPrefix::ledgerMaster);
+                wantLedger->addRaw (s);
+                newObj.set_data (s.getDataPtr (), s.getLength ());
+                newObj.set_ledgerseq (lSeq);
 
-				wantLedger->peekAccountStateMap ()->getFetchPack
-					(haveLedger->peekAccountStateMap ().get (), true, 1024,
-						std::bind (fpAppender, &reply, lSeq, std::placeholders::_1,
-								   std::placeholders::_2));
+                wantLedger->peekAccountStateMap ()->getFetchPack
+                        (haveLedger->peekAccountStateMap ().get (), true, 1024,
+                                std::bind (fpAppender, &reply, lSeq, std::placeholders::_1,
+                                        std::placeholders::_2));
 
-				if (wantLedger->getTransHash ().isNonZero ())
-					wantLedger->peekTransactionMap ()->getFetchPack (
-						nullptr, true, 256,
-						std::bind (fpAppender, &reply, lSeq, std::placeholders::_1,
-								   std::placeholders::_2));
+                if (wantLedger->getTransHash ().isNonZero ())
+                    wantLedger->peekTransactionMap ()->getFetchPack (
+                            nullptr, true, 256,
+                            std::bind (fpAppender, &reply, lSeq, std::placeholders::_1,
+                                    std::placeholders::_2));
 
-				if (reply.objects ().size () >= 256)
-					break;
+                if (reply.objects ().size () >= 256)
+                    break;
 
-				// move may save a ref/unref
-				haveLedger = std::move (wantLedger);
-				wantLedger = getLedgerByHash (haveLedger->getParentHash ());
-			}
-			while (wantLedger && (UptimeTimer::getInstance ().getElapsedSeconds () <= (uUptime + 1)));
-		}
-		
+                // move may save a ref/unref
+                haveLedger = std::move (wantLedger);
+                wantLedger = getLedgerByHash (haveLedger->getParentHash ());
+            }
+            while (wantLedger && (UptimeTimer::getInstance ().getElapsedSeconds () <= (uUptime + 1)));
+        }
+
         m_journal.info << "Built fetch pack with " << reply.objects ().size () << " nodes";
         Message::pointer msg = std::make_shared<Message> (reply, protocol::mtGET_OBJECTS);
         peer->sendPacket (msg, false);

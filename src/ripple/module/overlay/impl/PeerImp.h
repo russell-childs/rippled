@@ -1768,22 +1768,47 @@ private:
             bool pLDo = true;
             bool progress = false;
 
-            for (int i = 0; i < packet.objects_size (); ++i)
-            {
-                const protocol::TMIndexedObject& obj = packet.objects (i);
+            //Get total number of compact fetch pack leaf items
+            auto numNewStateItems = packet.newStateItem().size();
+            auto numModifiedStateItems = packet.modifiedStateItem()lsize();
+            auto numDeletedStateItems = packet.deletedStateItem()lsize();
+            auto numtransactionWithMetaItems= packet.transactionWithMeta().size();
+            auto numtransactionItems = packet.transactionWithMeta().size();
+            auto numItems = numNewStateItems  +numModifiedStateItems + numDeletedStateItems
+                            + numtransactionWithMetaItems + numtransactionItems;
 
-                if (obj.has_hash () && (obj.hash ().size () == (256 / 8)))
+            typedef protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK compact;
+            auto size = packet.type() == ? numItems : packet.objects().size ();
+
+            for (int i = 0; i < size; ++i)
+            {
+                //const protocol::TMIndexedObject& obj = packet.objects (i);
+
+                //Switching functions - return either the info from a full fetch pack or a compact fetch pack
+                //Assumptions - a leaf item's tag is the same as its container node's hash.
+                auto has_hash = [&](){ return compact ? leaf(i).has_tag_index() : packet.objects(i).has_hash(); };
+                auto hash_size = [&](){ return compact ? leaf(i).tag_index().size() : packet.objects(i).hash().size(); };
+                auto hash_data = [&](){ return compact ? leaf(i).tag_index().data() : packet.objects(i).hash().data(); };
+                auto has_ledgerseq = [&](){ return compact ? leaf(i).has_ledger_seq() : packet.objects(i).has_ledgerseq(); };
+                auto ledgerseq = [&](){ return compact ? leaf(i).ledger_seq() : packet.objects(i).ledgerseq() };
+                auto data = [&](){ return compact ? leaf(i).data() : packet.objects(i).data() };
+
+                //if ( (obj.has_hash () && (obj.hash ().size () == (256 / 8))) )
+                if ( (has_hash () && (hash_size () == (256 / 8))) )
                 {
 
-                    if (obj.has_ledgerseq ())
+                    //if (obj.has_ledgerseq ())
+                    if (has_ledgerseq ())
                     {
-                        if (obj.ledgerseq () != pLSeq)
+                        //if (obj.ledgerseq () != pLSeq)
+                        if (ledgerseq () != pLSeq)
                         {
                             if ((pLDo && (pLSeq != 0)) &&
                                 m_journal.active(beast::Journal::Severity::kDebug))
                                 m_journal.debug << "Received full fetch pack for " << pLSeq;
 
-                            pLSeq = obj.ledgerseq ();
+                            //pLSeq = obj.ledgerseq ();
+                            pLSeq = ledgerseq ();
                             pLDo = !getApp().getOPs ().haveLedger (pLSeq);
 
                             if (!pLDo)
@@ -1796,16 +1821,15 @@ private:
                     if (pLDo)
                     {
                         uint256 hash;
-                        memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
+                        //memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
+                        memcpy (hash.begin (), hash_data (), 256 / 8);
 
                         std::shared_ptr< Blob > data (
                             std::make_shared< Blob > (
-                                obj.data ().begin (), obj.data ().end ()));
+                                //obj.data ().begin (), obj.data ().end ()));
+                                data ().begin (), data ().end ()));
 
                         getApp().getOPs ().addFetchPack (hash, data);
-
-                        // TODO check fo otCompactFetchPack and place content in Tagged cache via addFetchPack.
-                        // Assumption: Node hash is the same as an item hash if the node is a leaf node.
                     }
                 }
             }

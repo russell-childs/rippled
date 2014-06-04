@@ -110,6 +110,10 @@ void InboundLedger::init (ScopedLockType& collectionLock)
 
 /** See how much of the ledger data, if any, is
     in our node store
+RJCHILDS start of mod
+    Transfers fetch pack data from tagged cache to nodestore in the event
+    a node is not found in the node store.
+RJCHILDS end of mod
 */
 bool InboundLedger::tryLocal ()
 {
