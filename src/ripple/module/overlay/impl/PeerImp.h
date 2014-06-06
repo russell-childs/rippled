@@ -1768,17 +1768,21 @@ private:
             bool pLDo = true;
             bool progress = false;
 
-            //Get total number of compact fetch pack leaf items
-            auto numNewStateItems = packet.new_state_item().size();
-            auto numModifiedStateItems = packet.modified_state_item()lsize();
-            auto numDeletedStateItems = packet.deleted_state_item()lsize();
-            auto numtransactionWithMetaItems= packet.transaction_with_meta_item().size();
-            auto numtransactionItems = packet.transaction_item().size();
-            auto numItems = numNewStateItems + numModifiedStateItems + numDeletedStateItems
-                            + numtransactionWithMetaItems + numtransactionItems;
+            //Get the compact fetch pack
+            typedef protocol::TMCompactFetchPack t_compact;
+            t_compact& compact = *packet.mutable_compact_fetch_pack();
 
-            typedef protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK compact;
-            auto size = packet.type() == ? numItems : packet.objects().size ();
+            //Get total number of compact fetch pack leaf items
+            auto is_compact_type = [&](){return packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK; };
+            auto numNewStateItems = compact.new_state_item().size();
+            auto numModifiedStateItems = compact.modified_state_item().size();
+            auto numDeletedStateItems = compact.deleted_state_item().size();
+            auto numtransactionItems = compact.transaction_item().size();
+            auto numItems = numNewStateItems + numModifiedStateItems + numDeletedStateItems
+                            + numtransactionItems;
+
+
+            auto size = packet.type() == is_compact_type() ? numItems : packet.objects().size ();
 
             //Lambda for indexing the compact fetch pack (N.B. This was written in a hurry and needs to be optimised).
             auto leaf = [&]( int i )
@@ -1787,23 +1791,19 @@ private:
 
                 if( i < numNewStateItems )
                 {
-                    ret_val = packet.new_state_item(i);
+                    ret_val = compact.new_state_item(i);
                 }
                 else if( i < numNewStateItems+numDeletedStateItems )
                 {
-                    ret_val = packet.deleted_state_item(i-numNewStateItems);
+                    ret_val = compact.deleted_state_item(i-numNewStateItems);
                 }
                 else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems )
                 {
-                    ret_val = packet.modified_state_item(i-numNewStateItems-numDeletedStateItems);
+                    ret_val = compact.modified_state_item(i-numNewStateItems-numDeletedStateItems);
                 }
-                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionWithMetaItems )
+                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionItems )
                 {
-                    ret_val = packet.modified_state_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
-                }
-                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionWithMetaItems+numtransactionWithMetaItems )
-                {
-                    ret_val = packet.modified_state_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
+                    ret_val = compact.transaction_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
                 }
 
                 return ret_val;
@@ -1815,29 +1815,29 @@ private:
 
                 //Switching functions - return either the info from a full fetch pack or a compact fetch pack
                 //Assumptions - a leaf item's tag is the same as its container node's hash.
-                auto has_hash = [&](){ return compact ? leaf(i).has_tag_index() : packet.objects(i).has_hash(); };
-                auto hash_size = [&](){ return compact ? leaf(i).tag_index().size() : packet.objects(i).hash().size(); };
-                auto hash_data = [&](){ return compact ? leaf(i).tag_index().data() : packet.objects(i).hash().data(); };
-                auto has_ledgerseq = [&](){ return compact ? leaf(i).has_ledger_seq() : packet.objects(i).has_ledgerseq(); };
-                auto ledgerseq = [&](){ return compact ? leaf(i).ledger_seq() : packet.objects(i).ledgerseq() };
-                auto data = [&](){ return compact ? leaf(i).data() : packet.objects(i).data() };
+                auto has_hash = [&](int i){ return is_compact_type() ? leaf(i).has_tag_index() : packet.objects(i).has_hash(); };
+                auto hash_size = [&](int i){ return is_compact_type() ? leaf(i).tag_index().size() : packet.objects(i).hash().size(); };
+                auto hash_data = [&](int i){ return is_compact_type() ? leaf(i).tag_index().data() : packet.objects(i).hash().data(); };
+                auto has_ledgerseq = [&](int i){ return is_compact_type() ? compact.has_have_ledger_seq() : packet.objects(i).has_ledgerseq(); };
+                auto ledgerseq = [&](int i){ return is_compact_type() ? compact.have_ledger_seq() : packet.objects(i).ledgerseq(); };
+                auto obj_data = [&](int i){ return is_compact_type() ? leaf(i).data() : packet.objects(i).data(); };
 
                 //if ( (obj.has_hash () && (obj.hash ().size () == (256 / 8))) )
-                if ( (has_hash () && (hash_size () == (256 / 8))) )
+                if ( (has_hash (i) && (hash_size (i) == (256 / 8))) )
                 {
 
                     //if (obj.has_ledgerseq ())
-                    if (has_ledgerseq ())
+                    if (has_ledgerseq (i))
                     {
                         //if (obj.ledgerseq () != pLSeq)
-                        if (ledgerseq () != pLSeq)
+                        if (ledgerseq (i) != pLSeq)
                         {
                             if ((pLDo && (pLSeq != 0)) &&
                                 m_journal.active(beast::Journal::Severity::kDebug))
                                 m_journal.debug << "Received full fetch pack for " << pLSeq;
 
                             //pLSeq = obj.ledgerseq ();
-                            pLSeq = ledgerseq ();
+                            pLSeq = ledgerseq (i);
                             pLDo = !getApp().getOPs ().haveLedger (pLSeq);
 
                             if (!pLDo)
@@ -1851,12 +1851,12 @@ private:
                     {
                         uint256 hash;
                         //memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
-                        memcpy (hash.begin (), hash_data (), 256 / 8);
+                        memcpy (hash.begin (), hash_data (i), 256 / 8);
 
                         std::shared_ptr< Blob > data (
                             std::make_shared< Blob > (
                                 //obj.data ().begin (), obj.data ().end ()));
-                                data ().begin (), data ().end ()));
+                                obj_data (i).begin (), obj_data (i).end ()));
 
                         getApp().getOPs ().addFetchPack (hash, data);
                     }
@@ -1869,7 +1869,7 @@ private:
 
             if ( (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK) ||
                         		(packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK) )
-                getApp().getOPs ().gotFetchPack (progress, pLSeq, ptr);
+                getApp().getOPs ().gotFetchPack (progress, pLSeq);
         }
     }
 
@@ -2640,7 +2640,7 @@ private:
         uint256 hash;
         memcpy (hash.begin (), packet->ledgerhash ().data (), 32);
 
-        getApp().getJobQueue ().addJob (jtPACK, packet->type() == otFETCH_PACK ? "MakeFetchPack" : "MakeCompactFetchPack,
+        getApp().getJobQueue ().addJob (jtPACK, "MakeFetchPack",
             std::bind (&NetworkOPs::makeFetchPack, &getApp().getOPs (), std::placeholders::_1,
                 std::weak_ptr<Peer> (shared_from_this ()), packet,
                     hash, UptimeTimer::getInstance ().getElapsedSeconds ()));
