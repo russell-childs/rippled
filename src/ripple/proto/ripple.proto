@@ -314,13 +314,13 @@ message TMIndexedLeafItem
 message TMCompactFetchPack
 {
  	required bytes have_ledger_hash 						= 1;
- 	required TMLedgerHeader wanted_ledger_header 			= 2;
- 	repeated TMIndexedLeafItem new_state_item 				= 3;
- 	repeated TMIndexedLeafItem modified_state_item 			= 4;
- 	repeated TMIndexedLeafItem deleted_state_item			= 5;
- 	repeated TMIndexedLeafItem transaction_with_meta_item	= 6;
- 	repeated TMIndexedLeafItem transaction_item				= 7;
- 	optional uint32 ledger_seq   							= 8;
+	required uint32 have_ledger_seq 						= 2;
+ 	required TMLedgerHeader wanted_ledger_header 			= 3;
+ 	repeated TMIndexedLeafItem new_state_item 				= 4;
+ 	repeated TMIndexedLeafItem modified_state_item 			= 5;
+ 	repeated TMIndexedLeafItem deleted_state_item			= 6;
+ 	repeated TMIndexedLeafItem transaction_with_meta_item	= 7;
+ 	repeated TMIndexedLeafItem transaction_item				= 8;
 }
 
 message TMGetObjectByHash

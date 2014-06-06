@@ -1769,16 +1769,45 @@ private:
             bool progress = false;
 
             //Get total number of compact fetch pack leaf items
-            auto numNewStateItems = packet.newStateItem().size();
-            auto numModifiedStateItems = packet.modifiedStateItem()lsize();
-            auto numDeletedStateItems = packet.deletedStateItem()lsize();
-            auto numtransactionWithMetaItems= packet.transactionWithMeta().size();
-            auto numtransactionItems = packet.transactionWithMeta().size();
-            auto numItems = numNewStateItems  +numModifiedStateItems + numDeletedStateItems
+            auto numNewStateItems = packet.new_state_item().size();
+            auto numModifiedStateItems = packet.modified_state_item()lsize();
+            auto numDeletedStateItems = packet.deleted_state_item()lsize();
+            auto numtransactionWithMetaItems= packet.transaction_with_meta_item().size();
+            auto numtransactionItems = packet.transaction_item().size();
+            auto numItems = numNewStateItems + numModifiedStateItems + numDeletedStateItems
                             + numtransactionWithMetaItems + numtransactionItems;
 
             typedef protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK compact;
             auto size = packet.type() == ? numItems : packet.objects().size ();
+
+            //Lambda for indexing the compact fetch pack (N.B. This was written in a hurry and needs to be optimised).
+            auto leaf = [&]( int i )
+            {
+                protocol::TMIndexedLeafItem ret_val;
+
+                if( i < numNewStateItems )
+                {
+                    ret_val = packet.new_state_item(i);
+                }
+                else if( i < numNewStateItems+numDeletedStateItems )
+                {
+                    ret_val = packet.deleted_state_item(i-numNewStateItems);
+                }
+                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems )
+                {
+                    ret_val = packet.modified_state_item(i-numNewStateItems-numDeletedStateItems);
+                }
+                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionWithMetaItems )
+                {
+                    ret_val = packet.modified_state_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
+                }
+                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionWithMetaItems+numtransactionWithMetaItems )
+                {
+                    ret_val = packet.modified_state_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
+                }
+
+                return ret_val;
+            };
 
             for (int i = 0; i < size; ++i)
             {

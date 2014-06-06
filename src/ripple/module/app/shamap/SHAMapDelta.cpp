@@ -271,11 +271,12 @@ bool SHAMap::compare (SHAMap::ref otherMap, Delta& differences, int maxCount)
 //  (7) Given a set of modified leaves in parent_tree, calling updateGiveItem for each of the modified leaves will update the
 //		corresponding leaves in this_tree.
 //  (8) Transcations leaf differences are confined to new and modified, there are no deleted leaf items.
-bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
-        const std::set<SHAMapItem::ref>& deleted_leaves,
-        const std::set<SHAMapItem::ref>& new_leaves,
-        const std::set<SHAMapItem::ref>& transaction_without_meta_data_leaves,
-        const std::set<SHAMapItem::ref>& transaction_with_meta_data_leaves)
+
+// Overloaded function for state map leaves
+bool SHAMap::integrate (
+        const std::set<SHAMapItem::pointer>& modified_leaves,
+        const std::set<SHAMapItem::pointer>& deleted_leaves,
+        const std::set<SHAMapItem::pointer>& new_leaves )
 {
     //Assume no error until proven wrong
     bool ret_val = true;
@@ -283,9 +284,9 @@ bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
     //Integrate over modified leaves
     for( auto& leaf : modified_leaves )
     {
-        if( hasItem(leaf.getTag()) ) //Verify leaf exists
+        if( hasItem(leaf->getTag()) ) //Verify leaf exists
         {
-            updateGiveItem(leaf, false, false)
+            updateGiveItem(leaf, false, false);
         }
         else //inconsistency between fetch pack and this_tree
         {
@@ -298,9 +299,9 @@ bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
     //Integrate over deleted leaves
     for( auto& leaf : deleted_leaves )
     {
-        if( hasItem(leaf.getTag()) ) //Verify leaf exists
+        if( hasItem(leaf->getTag()) ) //Verify leaf exists
         {
-            delItem(leaf)
+            delItem(leaf->getTag());
         }
         else	//inconsistency between fetch pack and this_tree
         {
@@ -313,9 +314,9 @@ bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
     //Integrate over modified leaves
     for( auto& leaf : new_leaves )
     {
-        if( !hasItem(leaf.getTag()) ) //Verify leaf does not exist
+        if( !hasItem(leaf->getTag()) ) //Verify leaf does not exist
         {
-            addGiveItem(leaf, false, false)
+            addGiveItem(leaf, false, false);
         }
         else //inconsistency between fetch pack and this_tree
         {
@@ -325,23 +326,21 @@ bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
         }
     }
 
-    //Integrate over transaction-with-meta-data leaves
-    for( auto& leaf : transaction_md_leaves )
-    {
-        if( hasItem(leaf.getTag()) ) //Leaf exists, so modify it
-        {
-            updateGiveItem(leaf, true, true);
-        }
-        else //new leaf, so add it
-        {
-            addGiveItem(leaf, true, true);
-        }
-    }
+    return ret_val;
+}
+
+// Overloaded function for transaction leaves
+// Assumptions: Transactions have no metadata
+bool SHAMap::integrate ( const std::set<SHAMapItem::pointer>& transaction_without_meta_data_leaves/*,
+                         const std::set<SHAMapItem::pointer>& transaction_with_meta_data_leaves*/ )
+{
+    //Assume no error until proven wrong
+    bool ret_val = true;
 
     //Integrate over transaction-without-meta-data leaves
     for( auto& leaf : transaction_without_meta_data_leaves )
     {
-        if( hasItem(leaf.getTag()) ) //Leaf exists, so modify it
+        if( hasItem(leaf->getTag()) ) //Leaf exists, so modify it
         {
             updateGiveItem(leaf, true, false);
         }
@@ -352,9 +351,10 @@ bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
     }
 
     //Integrate over transaction-with-meta-data leaves
+    /*
     for( auto& leaf : transaction_with_meta_data_leaves )
     {
-        if( hasItem(leaf.getTag()) ) //Leaf exists, so modify it
+        if( hasItem(leaf->getTag()) ) //Leaf exists, so modify it
         {
             updateGiveItem(leaf, true, true);
         }
@@ -363,6 +363,7 @@ bool SHAMap::integrate (const std::set<SHAMapItem::ref>& modified_leaves,
             addGiveItem(leaf, true, true);
         }
     }
+    */
 
     return ret_val;
 }

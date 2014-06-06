@@ -3259,56 +3259,69 @@ void NetworkOPsImp::makeFetchPack (Job&, std::weak_ptr<Peer> wPeer,
         reply.set_ledgerhash (request->ledgerhash ());
         reply.set_type(request->type());
 
-        if(request->type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK ) //otCOMPACT_FETCH_PACK
+        if(request->type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK && request->has_compact_fetch_pack()) //otCOMPACT_FETCH_PACK (needs error-checking)
         {
+            std::uint32_t lSeq = wantLedger->getLedgerSeq ();
+
+            protocol::TMIndexedObject& newObj = *reply.add_objects ();
+            newObj.set_hash (wantLedger->getHash ().begin (), 256 / 8);
+            Serializer s (256);
+            s.add32 (HashPrefix::ledgerMaster);
+            wantLedger->addRaw (s);
+            newObj.set_data (s.getDataPtr (), s.getLength ());
+            newObj.set_ledgerseq (lSeq);
+
             protocol::TMCompactFetchPack& compactFetchPack
-            = *reply.add_compactFetchPack();
+            = *reply.mutable_compact_fetch_pack();
+
+            //Add ledger sequence to pack
+            compactFetchPack.set_have_ledger_hash(haveLedger->getHash ().begin (), 256 / 8);
+
+            //Add ledger sequence to pack
+            compactFetchPack.set_have_ledger_seq(haveLedger->getLedgerSeq ());
 
             //Add wanted ledger header to reply
-            compactFetchPack.add_wantedLedgerHeader()->set_data(s.getDataPtr (), s.getLength ());
+            compactFetchPack.mutable_wanted_ledger_header()->set_data(s.getDataPtr (), s.getLength ());
 
             //Get new, modified, deleted account state leaves
-            Delta differences
-            haveLedger->peekAccountStateMap ().compare (wantLedger, differences, unsigned(-1));
+            SHAMap::Delta differences;
+            haveLedger->peekAccountStateMap ()->compare (wantLedger->peekAccountStateMap (), differences, unsigned(-1));
 
             //Add differences to reply
-            for( auto diff : differences )
+            for( auto& diff : differences )
             {
                 //leaves in source and wanted ledgers
-                SHAMapItem::pointer sourceLedgerItem = diff->second.first;
-                SHAMapItem::pointer wantedLedgerItem = diff->second.second;
+                SHAMapItem::pointer sourceLedgerItem = diff.second.first;
+                SHAMapItem::pointer wantedLedgerItem = diff.second.second;
 
-                auto stateLeafAppender = [](protocol::TMIndexedLeafItem& leafItem, SHAMapItem::pointer& ledgerItem)
+                auto stateLeafAppender = [&diff](protocol::TMIndexedLeafItem& leafItem, SHAMapItem::pointer& ledgerItem)
 				{
-                    leafItem.set_tag_index( &(diff->first[0]), diff->first.size() );
-                    leafItem.set_data( &ledgerItem->first[0]), ledgerItem->first.size() );
-				}
+                    leafItem.set_tag_index( diff.first.begin(), diff.first.size() );
+                    leafItem.set_data( ledgerItem->peekData().data(), ledgerItem->peekData().size() );
+				};
 
                 //Test for new, mod, deleted
                 if( !sourceLedgerItem && wantedLedgerItem ) // new
                 {
-                    stateLeafAppender(*reply.add_new_state_item(), wantedLedgerItem);
+                    stateLeafAppender(*compactFetchPack.add_new_state_item(), wantedLedgerItem);
                 }
                 else if( sourceLedgerItem && wantedLedgerItem ) // modified
                 {
-                    stateLeafAppender(*reply.add_modifiedStateItem(), wantedLedgerItem);
+                    stateLeafAppender(*compactFetchPack.add_modified_state_item(), wantedLedgerItem);
                 }
                 else if( sourceLedgerItem && !wantedLedgerItem ) // deleted
                 {
-                    stateLeafAppender(*reply.add_modifiedStateItem(), sourceLedgerItem);
+                    stateLeafAppender(*compactFetchPack.add_deleted_state_item(), sourceLedgerItem);
                 }
             }
 
             //Get transaction leaves
-            auto transactionLeafAppender = [&compactFetchPack](SHAMapItem::ref item) // callback lambda func
+            auto transactionLeafAppender = [&compactFetchPack, &wantLedger](SHAMapItem::ref item) // callback lambda func
 			{
-                //Determine whether transaction has meta data - N.B. This is very clunky, since it requires a 2nd tree traversal
-                auto transaction_map = wantLedger->peekAccountStateMap();
-                protocol::TMIndexedLeafItem& leafItem = transaction_map->peekItem(item->getTag()).hasMeta() ?
-                        *(compactFetchPack.get_transactionWithMetaItem()) : *(compactFetchPack.get_transactionItem());
+                protocol::TMIndexedLeafItem& leafItem = *(compactFetchPack.add_transaction_item());
                 //Record index and data for the item.
-                leafItem.set_tagIndex( &(item->getTag()[0]), item->getTag().size() );
-                leafItem.set_data( &(item->peekData()[0]), item->peekData().size() );
+                leafItem.set_tag_index( item->getTag().data(), item->getTag().size() );
+                leafItem.set_data( item->peekData().data(), item->peekData().size() );
 			};
             wantLedger->peekTransactionMap ()->visitLeaves( transactionLeafAppender );
         }

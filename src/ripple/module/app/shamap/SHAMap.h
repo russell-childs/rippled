@@ -230,6 +230,13 @@ public:
     // return value: true=successfully completed, false=too different
     bool compare (SHAMap::ref otherMap, Delta & differences, int maxCount);
 
+    bool integrate (const std::set<SHAMapItem::pointer>& modified_leaves,
+                    const std::set<SHAMapItem::pointer>& deleted_leaves,
+                    const std::set<SHAMapItem::pointer>& new_leaves );
+
+    bool integrate ( const std::set<SHAMapItem::pointer>& transaction_without_meta_data_leaves/*,
+                     const std::set<SHAMapItem::pointer>& transaction_with_meta_data_leaves*/ );
+
     int armDirty ();
     int flushDirty (DirtySet & dirtySet, int maxNodes, NodeObjectType t,
                            std::uint32_t seq);
