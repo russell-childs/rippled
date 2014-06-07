@@ -1,0 +1,23 @@
+package protocol;
+
+message Ripple_Labs_Test_Message_TMGetObjectByHash
+{
+    enum ObjectType {
+        otUNKNOWN           = 0;
+        otLEDGER            = 1;
+        otTRANSACTION       = 2;
+        otTRANSACTION_NODE  = 3;
+        otSTATE_NODE        = 4;
+        otCAS_OBJECT        = 5;
+        otFETCH_PACK        = 6;
+        otCOMPACT_FETCH_PACK= 7;
+    }
+
+    required ObjectType type            = 1;
+    required bool query                 = 2;    // is this a query or a reply?
+    optional uint32 seq                 = 3;    // used to match replies to queries
+    optional bytes ledgerHash           = 4;    // the hash of the ledger these queries are for
+    optional bool fat                   = 5;    // return related nodes
+    repeated TMIndexedObject objects    = 6;    // the specific objects requested
+    optional TMCompactFetchPack compact_fetch_pack = 7;	// Compact fetchpack data.
+}
