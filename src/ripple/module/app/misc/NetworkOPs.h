@@ -230,6 +230,10 @@ public:
         std::shared_ptr<protocol::TMGetObjectByHash> request,
         uint256 wantLedger, std::uint32_t uUptime) = 0;
 
+    virtual void makeCompactFetchPack(const SHAMap::accountStateMap& accountStateDiff,
+            const SHAMap::transactionMap& transactionMap,
+            protocol::TMCompactFetchPack& compactFetchPack) = 0;
+
     virtual bool shouldFetchPack (std::uint32_t seq) = 0;
     //virtual void gotFetchPack (bool progress, std::uint32_t seq, const boost::shared_ptr<protocol::TMGetObjectByHash>& ptr) = 0;
     virtual void gotFetchPack (bool progress, std::uint32_t seq) = 0;

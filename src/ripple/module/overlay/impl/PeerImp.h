@@ -1772,6 +1772,10 @@ private:
             typedef protocol::TMCompactFetchPack t_compact;
             t_compact& compact = *packet.mutable_compact_fetch_pack();
 
+            SHAMap::accountStateMap accountStateMap(0);
+            SHAMap::transactionMap transactionMap(0);
+            decodeCompactFetchPack(compact, accountStateMap, transactionMap, plSeq, plDo, progress);
+
             //Get total number of compact fetch pack leaf items
             auto is_compact_type = [&](){return packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK; };
             auto numNewStateItems = compact.new_state_item().size();
@@ -1870,6 +1874,95 @@ private:
             if ( (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK) ||
                         		(packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK) )
                 getApp().getOPs ().gotFetchPack (progress, pLSeq);
+        }
+    }
+
+    void decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
+         SHAMap::accountStateMap& accountStateMap,
+         SHAMap::transactionMap& transactionMap,
+         std::uint32_t pLSeq,
+         bool& pLDo,
+         bool& progress)
+    {
+        //Get total number of compact fetch pack leaf items
+        auto numNewStateItems = compact.new_state_item().size();
+        auto numModifiedStateItems = compact.modified_state_item().size();
+        auto numDeletedStateItems = compact.deleted_state_item().size();
+        auto numtransactionItems = compact.transaction_item().size();
+        auto numItems = numNewStateItems + numModifiedStateItems + numDeletedStateItems
+                        + numtransactionItems;
+
+        auto size = numItems;
+
+        //Lambda for indexing the compact fetch pack (N.B. This was written in a hurry and needs to be optimised).
+        auto leaf = [&compact, &numNewStateItems, &numModifiedStateItems,
+                     &numDeletedStateItems, &numtransactionItems,
+                     &accountStateMap, &transactionMap]( int i )
+        {
+            protocol::TMIndexedLeafItem ret_val;
+
+            if( i < numNewStateItems )
+            {
+                ret_val = compact.new_state_item(i);
+                uint256 hash(Blob(ret_val.tag_index().begin(), ret_val.tag_index().end()));
+                Blob data(ret_val.data().begin(), ret_val.data().end());
+                accountStateMap.m_delta.insert (std::make_pair (hash,
+                                      SHAMap::DeltaRef (SHAMapItem::pointer (), SHAMapItem(hash, data) )));
+            }
+            else if( i < numNewStateItems+numDeletedStateItems )
+            {
+                ret_val = compact.deleted_state_item(i-numNewStateItems);
+            }
+            else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems )
+            {
+                ret_val = compact.modified_state_item(i-numNewStateItems-numDeletedStateItems);
+            }
+            else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionItems )
+            {
+                ret_val = compact.transaction_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
+            }
+
+            return ret_val;
+        };
+
+        for (int i = 0; i < size; ++i)
+        {
+            auto item = leaf(i);
+
+            if(item.has_tag_index() && item.tag_index().size() == (256 / 8) )
+            {
+                if(compact.has_have_ledger_seq())
+                {
+                    if (compact.have_ledger_seq() != pLSeq)
+                    {
+                        if ((pLDo && (pLSeq != 0)) &&
+                            m_journal.active(beast::Journal::Severity::kDebug))
+                            m_journal.debug << "Received compact fetch pack for " << pLSeq;
+
+                        //pLSeq = obj.ledgerseq ();
+                        pLSeq = compact.have_ledger_seq();
+                        pLDo = !getApp().getOPs ().haveLedger (pLSeq);
+
+                        if (!pLDo)
+                             m_journal.debug << "Got compact pack for " << pLSeq << " too late";
+                        else
+                            progress = true;
+                    }
+                }
+                if (pLDo)
+                {
+                    uint256 hash;
+                    //memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
+                    memcpy (hash.begin (), hash_data (i), 256 / 8);
+
+                    boost::shared_ptr< Blob > data (
+                        boost::make_shared< Blob > (
+                            //obj.data ().begin (), obj.data ().end ()));
+                            obj_data (i).begin (), obj_data (i).end ()));
+
+                    getApp().getOPs ().addFetchPack (hash, data);
+                }
+            }
         }
     }
 

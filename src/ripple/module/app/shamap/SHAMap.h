@@ -230,6 +230,34 @@ public:
     // return value: true=successfully completed, false=too different
     bool compare (SHAMap::ref otherMap, Delta & differences, int maxCount);
 
+    //Partial attempt to add type-safety (std::tuple is not helpful here)
+    struct transactionMap
+    {
+        explicit transactionMap(SHAMap::ref in) : m_transactionMap(in)
+        {
+        }
+
+        SHAMap::ref m_transactionMap;
+        SHAMap::Delta m_delta;
+    };
+
+    struct accountStateMap
+    {
+        explicit accountStateMap(SHAMap::ref in) : m_accountStateMap(in)
+        {
+        }
+
+        SHAMap::ref m_accountStateMap;
+        SHAMap::Delta m_delta;
+    };
+
+    friend transactionMap operator-(transactionMap left, transactionMap right);
+    friend accountStateMap operator-(accountStateMap left, accountStateMap right);
+    friend transactionMap operator+(transactionMap left, SHAMap::Delta& right);
+    friend transactionMap operator+(SHAMap::Delta& left, transactionMap right);
+    friend accountStateMap operator+(accountStateMap left, SHAMap::Delta& right);
+    friend transactionMap operator+(SHAMap::Delta& left, accountStateMap right);
+
     bool integrate (const std::set<SHAMapItem::pointer>& modified_leaves,
                     const std::set<SHAMapItem::pointer>& deleted_leaves,
                     const std::set<SHAMapItem::pointer>& new_leaves );

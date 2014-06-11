@@ -247,6 +247,32 @@ bool SHAMap::compare (SHAMap::ref otherMap, Delta& differences, int maxCount)
     return true;
 }
 
+/** Effect left_tree - right_tree and return difference as new, modified and deleted leaves
+    @left The left transaction tree
+    @right The right transaction tree
+    @return right transation tree + leaf differences.
+*/
+SHAMap::transactionMap operator-(SHAMap::transactionMap left, SHAMap::transactionMap right)
+{
+    SHAMap::transactionMap ret_val(right);
+    left.m_transactionMap->compare(right.m_transactionMap, ret_val.m_delta, unsigned(-1));
+    return ret_val; //should be a move
+}
+
+/** Effect left_tree - right_tree and return difference as new, modified and deleted leaves
+    @left The left account state tree
+    @right The right account state tree
+    @return right account state tree + leaf differences.
+*/
+SHAMap::accountStateMap operator-(SHAMap::accountStateMap  left, SHAMap::accountStateMap right)
+{
+    SHAMap::accountStateMap ret_val(right);
+    left.m_accountStateMap->compare(right.m_accountStateMap, ret_val.m_delta, unsigned(-1));
+    return ret_val; //should be a move
+}
+
+
+
 //RJCHILDS start of mod
 // In: modified_leaves -    leaves that exist in both this_ledeger_tree and parent_ledger_tree but whose data differ
 // In: deleted_leaves -     leaves that exist in this_tree but not in parent_tree
