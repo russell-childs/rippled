@@ -251,12 +251,14 @@ public:
         SHAMap::Delta m_delta;
     };
 
-    friend transactionMap operator-(transactionMap left, transactionMap right);
-    friend accountStateMap operator-(accountStateMap left, accountStateMap right);
-    friend transactionMap operator+(transactionMap left, SHAMap::Delta& right);
-    friend transactionMap operator+(SHAMap::Delta& left, transactionMap right);
-    friend accountStateMap operator+(accountStateMap left, SHAMap::Delta& right);
-    friend transactionMap operator+(SHAMap::Delta& left, accountStateMap right);
+    friend accountStateMap operator-(accountStateMap wanted, accountStateMap source);
+    friend transactionMap operator-(transactionMap wanted, transactionMap source);
+
+    friend accountStateMap operator+(accountStateMap source, const SHAMap::Delta& differences);
+    friend transactionMap operator+(const SHAMap::Delta& difference, accountStateMap source);
+
+    friend transactionMap operator+(transactionMap source, const SHAMap::Delta& differences);
+    friend transactionMap operator+(const SHAMap::Delta& differences, transactionMap source);
 
     bool integrate (const std::set<SHAMapItem::pointer>& modified_leaves,
                     const std::set<SHAMapItem::pointer>& deleted_leaves,

@@ -247,31 +247,138 @@ bool SHAMap::compare (SHAMap::ref otherMap, Delta& differences, int maxCount)
     return true;
 }
 
-/** Effect left_tree - right_tree and return difference as new, modified and deleted leaves
-    @left The left transaction tree
-    @right The right transaction tree
-    @return right transation tree + leaf differences.
+/** Description: wnated_tree - source_tree and return difference as new, modified and deleted leaves
+    @wanted : SHAMap::accountStateMap = The left account state tree
+    @source : SHAMap::accountStateMap = The right account state tree
+    @return SHAMap::accountStateMap = source account state tree + leaf differences.
 */
-SHAMap::transactionMap operator-(SHAMap::transactionMap left, SHAMap::transactionMap right)
+SHAMap::accountStateMap operator-(SHAMap::accountStateMap wanted, SHAMap::accountStateMap source)
+{
+    SHAMap::accountStateMap ret_val(source);
+    wanted.m_accountStateMap->compare(source.m_accountStateMap, ret_val.m_delta, unsigned(-1));
+    return ret_val; //should be a move
+}
+
+/** Description: simply returns all leaves in wanted_tree
+    @wanted : SHAMap::transactionMap = The wanted transaction  tree
+    @source : SHAMap::transactionMap = The soucre transaction  tree
+    @return SHAMap::transactionMap = source transaction  tree and wanted leaves.
+*/
+SHAMap::transactionMap operator-(SHAMap::transactionMap wanted, SHAMap::transactionMap source)
 {
     SHAMap::transactionMap ret_val(right);
-    left.m_transactionMap->compare(right.m_transactionMap, ret_val.m_delta, unsigned(-1));
+
+    //Get transaction leaves
+    auto transactionLeafAppender = [&ret_val](SHAMapItem::ref item) // callback lambda func
+    {
+        ret_val.insert(std::make_pair (item->getTag (),
+                DeltaRef (SHAmap::pointer(), item )));
+    };
+    wanted.m_transactionMap->visitLeaves( transactionLeafAppender );
+
     return ret_val; //should be a move
 }
 
-/** Effect left_tree - right_tree and return difference as new, modified and deleted leaves
-    @left The left account state tree
-    @right The right account state tree
-    @return right account state tree + leaf differences.
+/** Description: returns source_tree + leaf differences (inverse of operator-)
+    @source : SHAMap::accountStateMap& = The source account state tree
+    @differences : const SHAMap::Delta& = The leaf differences
+    @return SHAMap::accountStateMap = source account state tree + leaf differences.
 */
-SHAMap::accountStateMap operator-(SHAMap::accountStateMap  left, SHAMap::accountStateMap right)
+SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::Delta& differences)
 {
-    SHAMap::accountStateMap ret_val(right);
-    left.m_accountStateMap->compare(right.m_accountStateMap, ret_val.m_delta, unsigned(-1));
-    return ret_val; //should be a move
+    for( auto& diff : differences)
+    {
+        //leaves in source and wanted ledgers
+        SHAMapItem::pointer sourceLedgerItem = diff.second.first;
+        SHAMapItem::pointer wantedLedgerItem = diff.second.second;
+
+        //Test for new, mod, deleted
+        if(sourceLedgerItem && wantedLedgerItem) //modified leaf
+        {
+            if( hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
+            {
+                source.m_accountStateMap->updateGiveItem(wantedLedgerItem, false, false);
+                getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), true);
+            }
+            else //inconsistency between fetch pack and this_tree
+            {
+                ret_val = false;
+                WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
+                        << " A compact fetch pack contains a modified account state leaf that does not exist in this tree.";
+            }
+        }
+        else if( sourceLedgerItem && !wantedLedgerItem) //deleted leaf
+        {
+            if( hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
+            {
+                source->delItem(leaf, false, false);
+                Blob dummy;
+                getApp().getOPs().retrieveFetchPack (wantedLedgerItem->getTag(), dummy); //This should delete entry from cache
+            }
+            else //inconsistency between fetch pack and this_tree
+            {
+                ret_val = false;
+                WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
+                        << " A compact fetch pack contains a deleted account state leaf that does not exist in this tree.";
+            }
+        }
+        else if( sourceLedgerItem && !wantedLedgerItem) //new leaf
+        {
+            if( !hasItem(sourceLedgerItem->getTag()) ) //Verify leaf doesn't exist
+            {
+                source->addGiveItem(wantedLedgerItem, false, false);
+                getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), false);
+            }
+            else //inconsistency between fetch pack and this_tree
+            {
+                ret_val = false;
+                WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
+                        << " A compact fetch pack contains a new account state leaf that already exists in this tree.";
+            }
+        }
+    }
+
+    return source;
 }
 
+/** Description: returns leaf diff + source_tree(inverse of operator-)
+    @differences : const SHAMap::Delta& = The leaf differences
+    @source : SHAMap::accountStateMap& = The  account state tree
+    @return SHAMap::accountStateMap = source account state tree + leaf differences.
+*/
+SHAMap::accountStateMap operator+(const SHAMap::Delta& differences, const SHAMap::accountStateMap& source)
+{
+    return source+differences;
+}
 
+/** Description: returns source_tree + wanted_tree leaves(inverse of operator-)
+    @source : SHAMap::transactionMap& = The  transaction tree
+    @differences :const SHAMap::Delta& = The leaf differences
+    @return SHAMap::transactionMap = source transaction tree + wanted tree leaves.
+*/
+SHAMap::transactionMap operator+(SHAMap::transactionMap source, const SHAMap::Delta& differences)
+{
+    for( auto& diff : differences)
+    {
+        //leaves in wanted ledger
+        SHAMapItem::pointer wantedLedgerItem = diff.second.second;
+
+        source->addGiveItem(wantedLedgerItem, false, false);
+        getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), false);
+    }
+
+    return source;
+}
+
+/** Description: returns wanted_tree leaves+source_tree  (inverse of operator-)
+    @differences : const SHAMap::Delta& = The wanted tree leaves
+    @source : SHAMap::transactionMap& = The  transaction tree
+    @return SHAMap::transactionMap = source transaction tree + wanted tree leaves.
+*/
+SHAMap::transactionMap operator+(const SHAMap::Delta& differences, SHAMap::transactionMap source)
+{
+    return differences+source;
+}
 
 //RJCHILDS start of mod
 // In: modified_leaves -    leaves that exist in both this_ledeger_tree and parent_ledger_tree but whose data differ

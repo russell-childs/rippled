@@ -234,10 +234,13 @@ public:
             const SHAMap::transactionMap& transactionMap,
             protocol::TMCompactFetchPack& compactFetchPack) = 0;
 
+    virtual void decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
+                SHAMap::accountStateMap& account, SHAMap::transactionMap& transaction) = 0;
+
     virtual bool shouldFetchPack (std::uint32_t seq) = 0;
     //virtual void gotFetchPack (bool progress, std::uint32_t seq, const boost::shared_ptr<protocol::TMGetObjectByHash>& ptr) = 0;
     virtual void gotFetchPack (bool progress, std::uint32_t seq) = 0;
-    virtual void addFetchPack (uint256 const& hash, std::shared_ptr< Blob >& data) = 0;
+    virtual void addFetchPack (uint256 const& hash, std::shared_ptr< Blob >& data, bool replace=false) = 0;
     virtual bool getFetchPack (uint256 const& hash, Blob& data) = 0;
     virtual int getFetchSize () = 0;
     virtual void sweepFetchPack () = 0;

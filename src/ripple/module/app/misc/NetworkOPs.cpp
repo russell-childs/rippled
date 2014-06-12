@@ -247,9 +247,11 @@ public:
     void makeCompactFetchPack(const SHAMap::accountStateMap& accountStateDiff,
             const SHAMap::transactionMap& transactionMap,
             protocol::TMCompactFetchPack& compactFetchPack);
+    void decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
+                SHAMap::accountStateMap& account, SHAMap::transactionMap& transaction);
     bool shouldFetchPack (std::uint32_t seq);
     void gotFetchPack (bool progress, std::uint32_t seq);
-    void addFetchPack (uint256 const& hash, std::shared_ptr< Blob >& data);
+    void addFetchPack (uint256 const& hash, std::shared_ptr< Blob >& data, bool replace=false);
     bool getFetchPack (uint256 const& hash, Blob& data);
     int getFetchSize ();
     void sweepFetchPack ();
@@ -3380,14 +3382,60 @@ void NetworkOPsImp::makeCompactFetchPack(const SHAMap::accountStateMap& accountS
     transactionMap.m_transactionMap->visitLeaves( transactionLeafAppender );
 }
 
+void decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
+            SHAMap::accountStateMap& account, SHAMap::transactionMap& transaction)
+{
+    auto getItem = [](const protocol::TMIndexedLeafItem& item)
+    {
+        uint256 hash;
+        memcpy (hash.begin (), item.tag_index ().data (), 256 / 8);
+        std::shared_ptr< Blob > data (
+                                     std::make_shared< Blob > (
+                                         item.data ().begin (), obj.data ().end ()));
+        return SHAMap::item(hash, data);
+    };
+
+    Ledger::pointer haveLedger =
+            getLedgerByHash(uint256(compact.have_ledger_hash()));
+
+    auto numNewStateItems = compact.new_state_item().size();
+    for (int i = 0; i < numNewStateItems; ++i)
+    {
+        account.m_delta.insert(std::make_pair (hash,
+                SHAMap::DeltaRef (SHAMap::pointer(), getItem(compact.new_state_item(i)) )));
+    }
+
+    auto numModifiedStateItems = compact.modified_state_item().size();
+    for (int i = 0; i < numModifiedStateItems; ++i)
+    {
+        account.m_delta.insert(std::make_pair (hash,
+                SHAMap::DeltaRef ( haveLedger->peekAccountStateMap().getItem(),
+                                    getItem(compact.modified_state_item(i)) )));
+    }
+
+    auto numDeletedStateItems = compact.deleted_state_item().size();
+    for (int i = 0; i < numDeletedStateItems; ++i)
+    {
+        account.m_delta.insert(std::make_pair (hash,
+                SHAMap::DeltaRef (getItem(compact.deleted_state_item(i)), SHAMap::pointer() )));
+    }
+
+    auto numtransactionItems = compact.transaction_item().size();
+    for (int i = 0; i < numtransactionItems; +i)
+    {
+        transaction.m_delta.insert(std::make_pair (hash,
+                SHAMap::DeltaRef (getItem(compact.transaction_item(i)), SHAMap::pointer() )));
+    }
+}
+
 void NetworkOPsImp::sweepFetchPack ()
 {
     mFetchPack.sweep ();
 }
 
-void NetworkOPsImp::addFetchPack (uint256 const& hash, std::shared_ptr< Blob >& data)
+void NetworkOPsImp::addFetchPack (uint256 const& hash, std::shared_ptr< Blob >& data, bool replace)
 {
-    mFetchPack.canonicalize (hash, data);
+    mFetchPack.canonicalize (hash, data, replace);
 }
 
 bool NetworkOPsImp::getFetchPack (uint256 const& hash, Blob& data)

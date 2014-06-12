@@ -1768,200 +1768,70 @@ private:
             bool pLDo = true;
             bool progress = false;
 
-            //Get the compact fetch pack
-            typedef protocol::TMCompactFetchPack t_compact;
-            t_compact& compact = *packet.mutable_compact_fetch_pack();
-
-            SHAMap::accountStateMap accountStateMap(0);
-            SHAMap::transactionMap transactionMap(0);
-            decodeCompactFetchPack(compact, accountStateMap, transactionMap, plSeq, plDo, progress);
-
-            //Get total number of compact fetch pack leaf items
-            auto is_compact_type = [&](){return packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK; };
-            auto numNewStateItems = compact.new_state_item().size();
-            auto numModifiedStateItems = compact.modified_state_item().size();
-            auto numDeletedStateItems = compact.deleted_state_item().size();
-            auto numtransactionItems = compact.transaction_item().size();
-            auto numItems = numNewStateItems + numModifiedStateItems + numDeletedStateItems
-                            + numtransactionItems;
-
-
-            auto size = packet.type() == is_compact_type() ? numItems : packet.objects().size ();
-
-            //Lambda for indexing the compact fetch pack (N.B. This was written in a hurry and needs to be optimised).
-            auto leaf = [&]( int i )
+            if(packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK)
             {
-                protocol::TMIndexedLeafItem ret_val;
+                //Get the compact fetch pack
+                typedef protocol::TMCompactFetchPack t_compact;
+                t_compact& compact = *packet.mutable_compact_fetch_pack();
 
-                if( i < numNewStateItems )
-                {
-                    ret_val = compact.new_state_item(i);
-                }
-                else if( i < numNewStateItems+numDeletedStateItems )
-                {
-                    ret_val = compact.deleted_state_item(i-numNewStateItems);
-                }
-                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems )
-                {
-                    ret_val = compact.modified_state_item(i-numNewStateItems-numDeletedStateItems);
-                }
-                else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionItems )
-                {
-                    ret_val = compact.transaction_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
-                }
+                Ledger::pointer haveLedger =
+                                getApp().getOPs ().getLedgerByHash(uint256(compact.have_ledger_hash()));
+                SHAMap::accountStateMap accountStateMap(haveLedger->peekAccountStateMap ());
+                SHAMap::transactionMap transactionMap(haveLedger->peekTransactionMap ());
+                getApp().getOPs ().decodeCompactFetchPack(compact, accountStateMap, transactionMap);
 
-                return ret_val;
-            };
-
-            for (int i = 0; i < size; ++i)
-            {
-                //const protocol::TMIndexedObject& obj = packet.objects (i);
-
-                //Switching functions - return either the info from a full fetch pack or a compact fetch pack
-                //Assumptions - a leaf item's tag is the same as its container node's hash.
-                auto has_hash = [&](int i){ return is_compact_type() ? leaf(i).has_tag_index() : packet.objects(i).has_hash(); };
-                auto hash_size = [&](int i){ return is_compact_type() ? leaf(i).tag_index().size() : packet.objects(i).hash().size(); };
-                auto hash_data = [&](int i){ return is_compact_type() ? leaf(i).tag_index().data() : packet.objects(i).hash().data(); };
-                auto has_ledgerseq = [&](int i){ return is_compact_type() ? compact.has_have_ledger_seq() : packet.objects(i).has_ledgerseq(); };
-                auto ledgerseq = [&](int i){ return is_compact_type() ? compact.have_ledger_seq() : packet.objects(i).ledgerseq(); };
-                auto obj_data = [&](int i){ return is_compact_type() ? leaf(i).data() : packet.objects(i).data(); };
-
-                //if ( (obj.has_hash () && (obj.hash ().size () == (256 / 8))) )
-                if ( (has_hash (i) && (hash_size (i) == (256 / 8))) )
-                {
-
-                    //if (obj.has_ledgerseq ())
-                    if (has_ledgerseq (i))
-                    {
-                        //if (obj.ledgerseq () != pLSeq)
-                        if (ledgerseq (i) != pLSeq)
-                        {
-                            if ((pLDo && (pLSeq != 0)) &&
-                                m_journal.active(beast::Journal::Severity::kDebug))
-                                m_journal.debug << "Received full fetch pack for " << pLSeq;
-
-                            //pLSeq = obj.ledgerseq ();
-                            pLSeq = ledgerseq (i);
-                            pLDo = !getApp().getOPs ().haveLedger (pLSeq);
-
-                            if (!pLDo)
-                                 m_journal.debug << "Got pack for " << pLSeq << " too late";
-                            else
-                                progress = true;
-                        }
-                    }
-
-                    if (pLDo)
-                    {
-                        uint256 hash;
-                        //memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
-                        memcpy (hash.begin (), hash_data (i), 256 / 8);
-
-                        std::shared_ptr< Blob > data (
-                            std::make_shared< Blob > (
-                                //obj.data ().begin (), obj.data ().end ()));
-                                obj_data (i).begin (), obj_data (i).end ()));
-
-                        getApp().getOPs ().addFetchPack (hash, data);
-                    }
-                }
+                //TODO: Where do we put these results?
+                auto accountResult  = getApp().getOPs ().peekAccountStateMap() + accountStateMap.m_delta;
+                auto transactionResult  = getApp().getOPs ().peekTransactionMap() + transactionMap.m_delta;
             }
-
-            if ((pLDo && (pLSeq != 0)) &&
-                m_journal.active(beast::Journal::Severity::kDebug))
-                m_journal.debug << "Received partial fetch pack for " << pLSeq;
-
-            if ( (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK) ||
-                        		(packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK) )
-                getApp().getOPs ().gotFetchPack (progress, pLSeq);
-        }
-    }
-
-    void decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
-         SHAMap::accountStateMap& accountStateMap,
-         SHAMap::transactionMap& transactionMap,
-         std::uint32_t pLSeq,
-         bool& pLDo,
-         bool& progress)
-    {
-        //Get total number of compact fetch pack leaf items
-        auto numNewStateItems = compact.new_state_item().size();
-        auto numModifiedStateItems = compact.modified_state_item().size();
-        auto numDeletedStateItems = compact.deleted_state_item().size();
-        auto numtransactionItems = compact.transaction_item().size();
-        auto numItems = numNewStateItems + numModifiedStateItems + numDeletedStateItems
-                        + numtransactionItems;
-
-        auto size = numItems;
-
-        //Lambda for indexing the compact fetch pack (N.B. This was written in a hurry and needs to be optimised).
-        auto leaf = [&compact, &numNewStateItems, &numModifiedStateItems,
-                     &numDeletedStateItems, &numtransactionItems,
-                     &accountStateMap, &transactionMap]( int i )
-        {
-            protocol::TMIndexedLeafItem ret_val;
-
-            if( i < numNewStateItems )
+            else
             {
-                ret_val = compact.new_state_item(i);
-                uint256 hash(Blob(ret_val.tag_index().begin(), ret_val.tag_index().end()));
-                Blob data(ret_val.data().begin(), ret_val.data().end());
-                accountStateMap.m_delta.insert (std::make_pair (hash,
-                                      SHAMap::DeltaRef (SHAMapItem::pointer (), SHAMapItem(hash, data) )));
-            }
-            else if( i < numNewStateItems+numDeletedStateItems )
-            {
-                ret_val = compact.deleted_state_item(i-numNewStateItems);
-            }
-            else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems )
-            {
-                ret_val = compact.modified_state_item(i-numNewStateItems-numDeletedStateItems);
-            }
-            else if( i < numNewStateItems+numDeletedStateItems+numModifiedStateItems+numtransactionItems )
-            {
-                ret_val = compact.transaction_item(i-numNewStateItems-numDeletedStateItems-numModifiedStateItems);
-            }
+                for (int i = 0; i < packet.objects_size (); ++i)
+                 {
+                     const protocol::TMIndexedObject& obj = packet.objects (i);
 
-            return ret_val;
-        };
+                     if (obj.has_hash () && (obj.hash ().size () == (256 / 8)))
+                     {
 
-        for (int i = 0; i < size; ++i)
-        {
-            auto item = leaf(i);
+                         if (obj.has_ledgerseq ())
+                         {
+                             if (obj.ledgerseq () != pLSeq)
+                             {
+                                 if ((pLDo && (pLSeq != 0)) &&
+                                     m_journal.active(beast::Journal::Severity::kDebug))
+                                     m_journal.debug << "Received full fetch pack for " << pLSeq;
 
-            if(item.has_tag_index() && item.tag_index().size() == (256 / 8) )
-            {
-                if(compact.has_have_ledger_seq())
-                {
-                    if (compact.have_ledger_seq() != pLSeq)
-                    {
-                        if ((pLDo && (pLSeq != 0)) &&
-                            m_journal.active(beast::Journal::Severity::kDebug))
-                            m_journal.debug << "Received compact fetch pack for " << pLSeq;
+                                 pLSeq = obj.ledgerseq ();
+                                 pLDo = !getApp().getOPs ().haveLedger (pLSeq);
 
-                        //pLSeq = obj.ledgerseq ();
-                        pLSeq = compact.have_ledger_seq();
-                        pLDo = !getApp().getOPs ().haveLedger (pLSeq);
+                                 if (!pLDo)
+                                      m_journal.debug << "Got pack for " << pLSeq << " too late";
+                                 else
+                                     progress = true;
+                             }
+                         }
 
-                        if (!pLDo)
-                             m_journal.debug << "Got compact pack for " << pLSeq << " too late";
-                        else
-                            progress = true;
-                    }
-                }
-                if (pLDo)
-                {
-                    uint256 hash;
-                    //memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
-                    memcpy (hash.begin (), hash_data (i), 256 / 8);
+                         if (pLDo)
+                         {
+                             uint256 hash;
+                             memcpy (hash.begin (), obj.hash ().data (), 256 / 8);
 
-                    boost::shared_ptr< Blob > data (
-                        boost::make_shared< Blob > (
-                            //obj.data ().begin (), obj.data ().end ()));
-                            obj_data (i).begin (), obj_data (i).end ()));
+                             std::shared_ptr< Blob > data (
+                                 std::make_shared< Blob > (
+                                     obj.data ().begin (), obj.data ().end ()));
 
-                    getApp().getOPs ().addFetchPack (hash, data);
-                }
+                             getApp().getOPs ().addFetchPack (hash, data);
+                         }
+                     }
+                 }
+
+                if ((pLDo && (pLSeq != 0)) &&
+                    m_journal.active(beast::Journal::Severity::kDebug))
+                    m_journal.debug << "Received partial fetch pack for " << pLSeq;
+
+                if ( (packet.type () == protocol::TMGetObjectByHash::otFETCH_PACK) ||
+                                    (packet.type() == protocol::TMGetObjectByHash::otCOMPACT_FETCH_PACK) )
+                    getApp().getOPs ().gotFetchPack (progress, pLSeq);
             }
         }
     }
