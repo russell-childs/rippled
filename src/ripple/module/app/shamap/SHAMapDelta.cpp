@@ -286,23 +286,26 @@ SHAMap::transactionMap operator-(SHAMap::transactionMap wanted, SHAMap::transact
 */
 SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::Delta& differences)
 {
-    for( auto& diff : differences)
+    //Get copy of source tree
+    SHAMap::pointer ret_val = source.m_accountStateMap.snapShot();
+
+    for( auto& diff : differences) //loop over leaf differences
     {
         //leaves in source and wanted ledgers
         SHAMapItem::pointer sourceLedgerItem = diff.second.first;
         SHAMapItem::pointer wantedLedgerItem = diff.second.second;
+
 
         //Test for new, mod, deleted
         if(sourceLedgerItem && wantedLedgerItem) //modified leaf
         {
             if( hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
             {
-                source.m_accountStateMap->updateGiveItem(wantedLedgerItem, false, false);
+                ret_val->updateGiveItem(wantedLedgerItem, false, false);
                 getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), true);
             }
             else //inconsistency between fetch pack and this_tree
             {
-                ret_val = false;
                 WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
                         << " A compact fetch pack contains a modified account state leaf that does not exist in this tree.";
             }
@@ -311,13 +314,12 @@ SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::
         {
             if( hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
             {
-                source->delItem(leaf, false, false);
+                ret_val->delItem(leaf, false, false);
                 Blob dummy;
                 getApp().getOPs().retrieveFetchPack (wantedLedgerItem->getTag(), dummy); //This should delete entry from cache
             }
             else //inconsistency between fetch pack and this_tree
             {
-                ret_val = false;
                 WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
                         << " A compact fetch pack contains a deleted account state leaf that does not exist in this tree.";
             }
@@ -326,19 +328,18 @@ SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::
         {
             if( !hasItem(sourceLedgerItem->getTag()) ) //Verify leaf doesn't exist
             {
-                source->addGiveItem(wantedLedgerItem, false, false);
+                ret_val->addGiveItem(wantedLedgerItem, false, false);
                 getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), false);
             }
             else //inconsistency between fetch pack and this_tree
             {
-                ret_val = false;
                 WriteLog (lsWARNING, SHAMap) << "SHAMap::integrate: Inconsistency Alert."
                         << " A compact fetch pack contains a new account state leaf that already exists in this tree.";
             }
         }
     }
 
-    return source;
+    return SHAMap::accountStateMap(ret_val);
 }
 
 /** Description: returns leaf diff + source_tree(inverse of operator-)
@@ -358,16 +359,18 @@ SHAMap::accountStateMap operator+(const SHAMap::Delta& differences, const SHAMap
 */
 SHAMap::transactionMap operator+(SHAMap::transactionMap source, const SHAMap::Delta& differences)
 {
-    for( auto& diff : differences)
+    SHAMap::pointer ret_val = source.m_transactionMap.snapShot();
+
+    for( auto& diff : differences) //Loop over leaves in wanted tree
     {
         //leaves in wanted ledger
         SHAMapItem::pointer wantedLedgerItem = diff.second.second;
 
-        source->addGiveItem(wantedLedgerItem, false, false);
+        ret_val->addGiveItem(wantedLedgerItem, false, false);
         getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), false);
     }
 
-    return source;
+    return SHAMap::atransactionMap(ret_val);;
 }
 
 /** Description: returns wanted_tree leaves+source_tree  (inverse of operator-)
