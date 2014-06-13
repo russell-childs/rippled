@@ -3382,49 +3382,47 @@ void NetworkOPsImp::makeCompactFetchPack(const SHAMap::accountStateMap& accountS
     transactionMap.m_transactionMap->visitLeaves( transactionLeafAppender );
 }
 
-void decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
+void NetworkOPsImp::decodeCompactFetchPack(const protocol::TMCompactFetchPack& compact,
             SHAMap::accountStateMap& account, SHAMap::transactionMap& transaction)
 {
-    auto getItem = [](const protocol::TMIndexedLeafItem& item)
+    auto getItem = [](const protocol::TMIndexedLeafItem& item)->std::shared_ptr<SHAMapItem>
     {
         uint256 hash;
         memcpy (hash.begin (), item.tag_index ().data (), 256 / 8);
-        std::shared_ptr< Blob > data (
-                                     std::make_shared< Blob > (
-                                         item.data ().begin (), obj.data ().end ()));
-        return SHAMap::item(hash, data);
+        Blob blob(item.data ().begin (), item.data ().end ());
+        return std::make_shared<SHAMapItem>(hash, blob);
     };
 
     Ledger::pointer haveLedger =
-            getLedgerByHash(uint256(compact.have_ledger_hash()));
+            getApp().getOPs().getLedgerByHash(uint256(compact.have_ledger_hash()));
 
     auto numNewStateItems = compact.new_state_item().size();
     for (int i = 0; i < numNewStateItems; ++i)
     {
-        account.m_delta.insert(std::make_pair (hash,
-                SHAMap::DeltaRef (SHAMap::pointer(), getItem(compact.new_state_item(i)) )));
+        account.m_delta.insert(std::make_pair (getItem(compact.new_state_item(i))->getTag(),
+                SHAMap::DeltaRef (SHAMapItem::pointer (), getItem(compact.new_state_item(i)) )));
     }
 
     auto numModifiedStateItems = compact.modified_state_item().size();
     for (int i = 0; i < numModifiedStateItems; ++i)
     {
-        account.m_delta.insert(std::make_pair (hash,
-                SHAMap::DeltaRef ( haveLedger->peekAccountStateMap().getItem(),
+        account.m_delta.insert(std::make_pair (getItem(compact.new_state_item(i))->getTag(),
+                SHAMap::DeltaRef ( haveLedger->peekAccountStateMap()->peekItem(getItem(compact.new_state_item(i))->getTag()),
                                     getItem(compact.modified_state_item(i)) )));
     }
 
     auto numDeletedStateItems = compact.deleted_state_item().size();
     for (int i = 0; i < numDeletedStateItems; ++i)
     {
-        account.m_delta.insert(std::make_pair (hash,
-                SHAMap::DeltaRef (getItem(compact.deleted_state_item(i)), SHAMap::pointer() )));
+        account.m_delta.insert(std::make_pair (getItem(compact.new_state_item(i))->getTag(),
+                SHAMap::DeltaRef (getItem(compact.deleted_state_item(i)), SHAMapItem::pointer () )));
     }
 
     auto numtransactionItems = compact.transaction_item().size();
-    for (int i = 0; i < numtransactionItems; +i)
+    for (int i = 0; i < numtransactionItems; ++i)
     {
-        transaction.m_delta.insert(std::make_pair (hash,
-                SHAMap::DeltaRef (getItem(compact.transaction_item(i)), SHAMap::pointer() )));
+        transaction.m_delta.insert(std::make_pair (getItem(compact.new_state_item(i))->getTag(),
+                SHAMap::DeltaRef (getItem(compact.transaction_item(i)), SHAMapItem::pointer () )));
     }
 }
 

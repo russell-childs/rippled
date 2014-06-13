@@ -266,13 +266,13 @@ SHAMap::accountStateMap operator-(SHAMap::accountStateMap wanted, SHAMap::accoun
 */
 SHAMap::transactionMap operator-(SHAMap::transactionMap wanted, SHAMap::transactionMap source)
 {
-    SHAMap::transactionMap ret_val(right);
+    SHAMap::transactionMap ret_val(source);
 
     //Get transaction leaves
     auto transactionLeafAppender = [&ret_val](SHAMapItem::ref item) // callback lambda func
     {
-        ret_val.insert(std::make_pair (item->getTag (),
-                DeltaRef (SHAmap::pointer(), item )));
+        ret_val.m_delta.insert(std::make_pair (item->getTag (),
+                SHAMap::DeltaRef (SHAMapItem::pointer (), item )));
     };
     wanted.m_transactionMap->visitLeaves( transactionLeafAppender );
 
@@ -287,7 +287,7 @@ SHAMap::transactionMap operator-(SHAMap::transactionMap wanted, SHAMap::transact
 SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::Delta& differences)
 {
     //Get copy of source tree
-    SHAMap::pointer ret_val = source.m_accountStateMap.snapShot();
+    SHAMap::pointer ret_val = source.m_accountStateMap->snapShot(true);
 
     for( auto& diff : differences) //loop over leaf differences
     {
@@ -299,10 +299,12 @@ SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::
         //Test for new, mod, deleted
         if(sourceLedgerItem && wantedLedgerItem) //modified leaf
         {
-            if( hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
+            if( ret_val->hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
             {
                 ret_val->updateGiveItem(wantedLedgerItem, false, false);
-                getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), true);
+                std::shared_ptr< Blob > data (std::make_shared< Blob > (
+                     wantedLedgerItem->peekData().begin (), wantedLedgerItem->peekData().end ()));
+                getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), data, true);
             }
             else //inconsistency between fetch pack and this_tree
             {
@@ -312,11 +314,11 @@ SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::
         }
         else if( sourceLedgerItem && !wantedLedgerItem) //deleted leaf
         {
-            if( hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
+            if( ret_val->hasItem(sourceLedgerItem->getTag()) ) //Verify leaf exists
             {
-                ret_val->delItem(leaf, false, false);
+                ret_val->delItem(sourceLedgerItem->getTag());
                 Blob dummy;
-                getApp().getOPs().retrieveFetchPack (wantedLedgerItem->getTag(), dummy); //This should delete entry from cache
+                getApp().getOPs().getFetchPack (wantedLedgerItem->getTag(), dummy); //This should delete entry from cache
             }
             else //inconsistency between fetch pack and this_tree
             {
@@ -326,10 +328,12 @@ SHAMap::accountStateMap operator+(SHAMap::accountStateMap source, const SHAMap::
         }
         else if( sourceLedgerItem && !wantedLedgerItem) //new leaf
         {
-            if( !hasItem(sourceLedgerItem->getTag()) ) //Verify leaf doesn't exist
+            if( !ret_val->hasItem(sourceLedgerItem->getTag()) ) //Verify leaf doesn't exist
             {
                 ret_val->addGiveItem(wantedLedgerItem, false, false);
-                getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), false);
+                std::shared_ptr< Blob > data (std::make_shared< Blob > (
+                                     wantedLedgerItem->peekData().begin (), wantedLedgerItem->peekData().end ()));
+                getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), data, false);
             }
             else //inconsistency between fetch pack and this_tree
             {
@@ -359,7 +363,7 @@ SHAMap::accountStateMap operator+(const SHAMap::Delta& differences, const SHAMap
 */
 SHAMap::transactionMap operator+(SHAMap::transactionMap source, const SHAMap::Delta& differences)
 {
-    SHAMap::pointer ret_val = source.m_transactionMap.snapShot();
+    SHAMap::pointer ret_val = source.m_transactionMap->snapShot(true);
 
     for( auto& diff : differences) //Loop over leaves in wanted tree
     {
@@ -367,10 +371,12 @@ SHAMap::transactionMap operator+(SHAMap::transactionMap source, const SHAMap::De
         SHAMapItem::pointer wantedLedgerItem = diff.second.second;
 
         ret_val->addGiveItem(wantedLedgerItem, false, false);
-        getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), wantedLedgerItem->peekData(), false);
+        std::shared_ptr< Blob > data (std::make_shared< Blob > (
+                             wantedLedgerItem->peekData().begin (), wantedLedgerItem->peekData().end ()));
+        getApp().getOPs().addFetchPack (wantedLedgerItem->getTag(), data, false);
     }
 
-    return SHAMap::atransactionMap(ret_val);;
+    return SHAMap::transactionMap(ret_val);
 }
 
 /** Description: returns wanted_tree leaves+source_tree  (inverse of operator-)

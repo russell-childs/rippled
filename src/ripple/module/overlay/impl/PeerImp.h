@@ -1781,8 +1781,8 @@ private:
                 getApp().getOPs ().decodeCompactFetchPack(compact, accountStateMap, transactionMap);
 
                 //TODO: Where do we put these results?
-                auto accountResult  = getApp().getOPs ().peekAccountStateMap() + accountStateMap.m_delta;
-                auto transactionResult  = getApp().getOPs ().peekTransactionMap() + transactionMap.m_delta;
+                auto accountResult  = SHAMap::accountStateMap(haveLedger->peekAccountStateMap()) + accountStateMap.m_delta;
+                auto transactionResult  = SHAMap::transactionMap(haveLedger->peekTransactionMap()) + transactionMap.m_delta;
             }
             else
             {
