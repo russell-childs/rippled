@@ -32,6 +32,10 @@ namespace detail {
 class LeakCheckedBase
 {
 public:
+    LeakCheckedBase( void )
+    {
+
+    }
     static void checkForLeaks ();
 
 protected:
@@ -42,6 +46,7 @@ protected:
 
         virtual ~LeakCounterBase ()
         {
+            checkForLeaks();
         }
 
         inline int increment ()

@@ -25,6 +25,7 @@ namespace beast
 //
 class AtExitHook::Manager
 {
+
 public:
     Manager ()
         : m_didStaticDestruction (false)
@@ -90,7 +91,16 @@ private:
     typedef CriticalSection MutexType;
     typedef MutexType::ScopedLockType ScopedLockType;
 
-    static StaticDestructor s_staticDestructor;
+    //static StaticDestructor s_staticDestructor;
+
+    //Following method simply creates a StaticDestructor and invokes cleanup after main() exits.
+    //It should be call before any objects being tracked for "memory leaks" are created.
+    //This will ensure correct ordering of dtors,
+    //StaticDestructor::~StaticDestructor() being the last be called.
+    static void init( void )
+    {
+        StaticDestructor cleanup;
+    }
 
     MutexType m_mutex;
     List <Item> m_list;
@@ -101,7 +111,7 @@ private:
 // When it gets destroyed, we will call into the Manager to
 // call all of the AtExitHook items in the list.
 //
-AtExitHook::Manager::StaticDestructor AtExitHook::Manager::s_staticDestructor;
+//AtExitHook::Manager::StaticDestructor AtExitHook::Manager::s_staticDestructor;
 
 //------------------------------------------------------------------------------
 

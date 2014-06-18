@@ -28,6 +28,9 @@ namespace detail
 class LeakCheckedBase::LeakCounterBase::Singleton
 {
 public:
+    ~Singleton( void )
+    {
+    }
     void push_back (LeakCounterBase* counter)
     {
         m_list.push_front (counter);
